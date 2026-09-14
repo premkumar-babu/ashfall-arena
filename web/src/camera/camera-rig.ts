@@ -5,11 +5,10 @@ import { clamp, damp } from '../core/math';
 import { REDUCED_MOTION } from '../core/platform';
 import { Spring } from '../core/spring';
 import type { Fighter } from '../game/fighter';
+import { feelFov, feelShake, koFocus } from '../fx/juice';
 import { attackPhase } from '../game/fsm';
-import { match } from '../game/match';
 import { state } from '../game/state';
 import { ambLight, camera, hemiLight, key, LIGHTS } from '../render/stage';
-import { settings } from '../ui/settings';
 
 /*
   The camera rig.
@@ -62,7 +61,7 @@ function fightFov(): number {
 
 const FRAMING = {
   /** Space kept beyond each fighter's root, so a full extension or a knockback stays in frame. */
-  margin: 2.4,
+  margin: 3.2,
   /** Hard ceiling on pull-back, reached only on very narrow (portrait phone) screens. */
   zMaxFit: 40,
   /** Seconds of the pair's average velocity the camera leads by. */
@@ -186,6 +185,7 @@ export function updateCameraTitle(dt: number, t: number): void {
 
 export function updateCameraSelect(dt: number): void {
   resetSprings();                                   // the fight camera starts from rest, not from last match's velocity
+  fightFovBase = null;
   dampLights(LIGHTS.ambSelect, LIGHTS.hemiSelect, LIGHTS.keySelect, dt);
   if (!camTween && !camTweenPending) {
     rigBase.x = damp(rigBase.x, 0, 3.0, dt);
@@ -226,6 +226,12 @@ function attackCamera(dt: number): void {
   const { P1, P2 } = state;
   if (P1.powered || P2.powered) want = Math.max(want, 0.35);
   if (assistOnStage(P1) || assistOnStage(P2)) want = Math.max(want, 0.62);
+  // a KO: push right in and lean toward whoever went down, for the length of the slow motion
+  const ko = koFocus();
+  if (ko !== null) {
+    want = Math.max(want, 1.35);
+    bias = (ko - (P1.x + P2.x) / 2) * 0.7;
+  }
 
   camPush = damp(camPush, want, want > camPush ? 14 : 3.5, dt);  // push in fast, ease back out
   camBias = damp(camBias, bias, 6, dt);
@@ -254,9 +260,22 @@ function shakeNoise(t: number, seed: number): number {
     + Math.sin(t * 93.3 + seed * 9.1) * 0.15;
 }
 
+/* The fight lens is the framing FOV plus an impact punch. The base is damped
+   on its own, so a punch eases back to the framing instead of being chased by it. */
+let fightFovBase: number | null = null;
+
+function applyFightFov(dt: number): void {
+  fightFovBase = damp(fightFovBase ?? camera.fov, fightFov(), 4.0, dt);
+  const next = fightFovBase + feelFov();
+  if (Math.abs(next - camera.fov) > 0.002) {
+    camera.fov = next;
+    camera.updateProjectionMatrix();
+  }
+}
+
 export function updateCameraFight(dt: number): void {
   dampLights(LIGHTS.ambFight, LIGHTS.hemiFight, LIGHTS.keyFight, dt);
-  dampFov(fightFov(), dt);
+  applyFightFov(dt);
   const { P1, P2 } = state;
   const mid = (P1.x + P2.x) / 2;
   const sep = Math.abs(P1.x - P2.x);
@@ -272,12 +291,13 @@ export function updateCameraFight(dt: number): void {
   // the authored dolly, never closer than what keeps both fighters on screen at this aspect
   const dollyZ = clamp(RIG.zBase + sep * RIG.zPerGap, RIG.zMin, RIG.zMax);
   const fitZ = PLANE_Z + fitDistance(sep / 2 + FRAMING.margin);
-  const wantZ = Math.min(Math.max(dollyZ, fitZ), FRAMING.zMaxFit) - camPush * 1.2;
+  // the attack push-in is kept small, so a flurry never drags the camera back into the fighters' faces
+  const wantZ = Math.min(Math.max(dollyZ, fitZ), FRAMING.zMaxFit) - camPush * 0.6;
 
   // the rig's own position, kept free of shake so shake never feeds back into the springs
   rigBase.z = springs.z.step(rigBase.z, wantZ, FRAMING.smoothZ, dt);
   rigBase.x = springs.x.step(rigBase.x, clamp(mid * RIG.xPull + camBias + leadX, -8.5, 8.5), FRAMING.smoothX, dt);
-  rigBase.y = springs.y.step(rigBase.y, RIG.yBase + sep * RIG.yPerGap + highest * 0.34 - camPush * 0.22, FRAMING.smoothY, dt);
+  rigBase.y = springs.y.step(rigBase.y, RIG.yBase + sep * RIG.yPerGap + highest * 0.34 - camPush * 0.12, FRAMING.smoothY, dt);
   rigState.z = rigBase.z;
 
   rigState.look.x = springs.lookX.step(rigState.look.x, mid * 0.92 + leadX * 0.5, FRAMING.smoothLook, dt);
@@ -287,17 +307,16 @@ export function updateCameraFight(dt: number): void {
   camera.lookAt(rigState.look);
   camera.rotation.z += camRoll;                    // slight bank toward the swing
 
-  // shake after aiming, so it translates the frame rather than orbiting the target
-  if (match.shake > 0.001 && !REDUCED_MOTION && settings.shakeOn) {
+  /* Shake after aiming, so it translates the frame rather than orbiting the
+     target. Strength is trauma² from fx/juice.ts, which owns the decay and
+     already folds in the SCREEN SHAKE setting and reduced motion. */
+  const shake = feelShake();
+  if (shake > 0.0005) {
     shakeClock += dt;
-    const m = match.shake * SHAKE.amount;
+    const m = shake * SHAKE.amount * 1.8;
     shakeOff.set(shakeNoise(shakeClock, 0) * m * 0.5, shakeNoise(shakeClock, 1) * m * 0.5, 0);
     camera.position.add(shakeOff);
-    camera.rotation.z += shakeNoise(shakeClock, 2) * match.shake * SHAKE.roll * 0.5;
-    match.shake *= Math.exp(-SHAKE.lambda * dt);
-    if (match.shake < 0.001) match.shake = 0;
-  } else {
-    match.shake = 0;
+    camera.rotation.z += shakeNoise(shakeClock, 2) * shake * SHAKE.roll;
   }
 
   aimKeyAt(mid + 7, 15, 9, mid, 2);
@@ -309,5 +328,6 @@ export function resetCameraRig(): void {
   rigBase.set(0, 3.6, 11.4);
   rigState.look.set(0, 2.2, PLANE_Z);
   camPush = camBias = camRoll = leadX = shakeClock = 0;
+  fightFovBase = null;
   resetSprings();
 }

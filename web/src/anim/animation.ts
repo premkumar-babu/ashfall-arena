@@ -3,6 +3,7 @@ import { A, type FighterState } from '../config/constants';
 import type { FighterDef } from '../config/roster';
 import { clamp, damp } from '../core/math';
 import { CLIPS, clipUrl, loadModel, manifestEntry } from '../assets/loader';
+import { Assets } from '../assets/pipeline';
 import type { Assist } from '../game/assist-rig';
 import type { Fighter } from '../game/fighter';
 import { assistRigs, rigs } from '../game/rigs';
@@ -151,10 +152,14 @@ class ClipLibrary {
       this.finish();
       return;
     }
+    for (const file of ANIM_LIB.files) Assets.expect(ANIM_LIB.root + file, 'motion');
     for (const file of ANIM_LIB.files) {
       this.pending++;
-      loadModel(ANIM_LIB.root + file)
+      const path = ANIM_LIB.root + file;
+      const job = Assets.job(path, 'motion');
+      loadModel(path, job.progress)
         .then((asset) => {
+          job.done();
           for (const c of asset.animations) if (c.name && !this.clips.has(c.name)) this.clips.set(c.name, c);
           /* Without the rest pose the tracks are meaningless on any other
              skeleton: a rotation is only a pose relative to where the bone started. */
@@ -163,8 +168,12 @@ class ClipLibrary {
             const k = normBone(n.name);
             if (!this.rest.has(k)) this.rest.set(k, n.quaternion.clone());
           });
+          // the clips and rest pose are all that is kept; the library rig's meshes are freed
+          Assets.release(path);
         })
-        .catch(() => { /* a missing library file leaves those slots to the bone driver */ })
+        .catch(() => {
+          job.fail();                   // a missing library file leaves those slots to the bone driver
+        })
         .finally(() => {
           if (--this.pending === 0) this.finish();
         });

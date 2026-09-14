@@ -1,7 +1,9 @@
 import * as THREE from 'three/webgpu';
 import { BOUND, GRAVITY, GROUND, METER, MIN_GAP, MOVES, PLANE_Z, S } from '../config/constants';
 import { MOVEMENT } from '../config/controls';
+import { Sfx } from '../audio/sfx';
 import { clamp, damp } from '../core/math';
+import { addTrauma } from '../fx/juice';
 import { Burst } from '../fx/particles';
 import { spawnRing } from '../fx/vfx';
 import type { MoveResult } from '../physics/port';
@@ -157,10 +159,13 @@ function moveFighter(f: Fighter, dx: number, dt: number): void {
   const landed = !wasGrounded && r.grounded && f.vy <= 0;
   if (landed) {
     const fall = -f.vy;
+    if (fall > 3) Sfx.land(clamp(fall / 14, 0.25, 1), f.x);
     if (fall > 6) {
       Burst.emit(_v.set(f.x, 0.12, PLANE_Z), 0xC9BCA2, 14, 3.4, 0.8);
       spawnRing(_v.set(f.x, 0.2, PLANE_Z), 0xD8CBB0);
     }
+    // a hard landing thumps the camera a little
+    if (fall > 11) addTrauma(0.14);
     // how hard they hit the stones, for the squash on the way out
     if (fall > 1.5) f.land = clamp(fall / 15, 0, 1);
     f.vy = 0;

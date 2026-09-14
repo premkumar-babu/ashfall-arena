@@ -3,6 +3,7 @@ import { A, METER, PLANE_Z, S } from '../config/constants';
 import { Sfx } from '../audio/sfx';
 import { clamp } from '../core/math';
 import { Flip } from '../fx/flipbook';
+import { impact } from '../fx/juice';
 import { Burst } from '../fx/particles';
 import { announce } from '../ui/announcer';
 import { launchAssist } from './assist';
@@ -51,7 +52,7 @@ function tryAssist(f: Fighter, foe: Fighter): boolean {
   f.assistCd = METER.assistCooldown;
   launchAssist(a, foe);
   announce(a.def.name, 900, 'toast');
-  Sfx.call();
+  Sfx.call(f.x);
   return true;
 }
 
@@ -62,6 +63,6 @@ function tryPower(f: Fighter): boolean {
   Sfx.power();
   Burst.emit(_v.set(f.x, 1.4, PLANE_Z), f.def.accent, 46, 6.5, 0.4);
   Flip.play('charge', _v.set(f.x, 1.7, PLANE_Z - 0.2), 3.4, f.def.accent, 0, 0.85);
-  match.shake = 0.5;
+  impact('super');                     // the lens breathes out and the frame flashes
   return true;
 }

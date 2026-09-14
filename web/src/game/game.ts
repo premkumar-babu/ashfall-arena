@@ -4,12 +4,13 @@ import {
   flushCamTween, rigState, updateCameraFight, updateCameraSelect, updateCameraTitle, updateCamTweens,
 } from '../camera/camera-rig';
 import { PHASE, PLANE_Z } from '../config/constants';
+import { Governor } from '../core/frame-governor';
+import { presentScale, updateFeel } from '../fx/juice';
 import { updateStrikeLights } from '../fx/strike-lights';
 import { controllers, endInputStep, input, pollDevices } from '../input/controller';
 import { physics } from '../physics/port';
 import { post } from '../render/post';
 import { camera } from '../render/stage';
-import { Boot } from '../ui/boot-curtain';
 import { refreshPads } from '../ui/front-end';
 import { stepKeyLegend, syncHud } from '../ui/hud';
 import { stepPadMenu } from '../ui/pad-menu';
@@ -135,14 +136,14 @@ export function present(alpha: number, frameDt: number): void {
   const t = state.elapsed;
   physics?.interpolate(alpha);
   input.touch?.sync(state.phase === PHASE.FIGHT && !match.paused && !document.body.classList.contains('results'));
+  updateFeel(frameDt);                             // decays shake and lens kicks, drives listener, clock ticks and music
 
   switch (state.phase) {
     case PHASE.TITLE:
-      Boot.tick();
       updateCameraTitle(frameDt, t);
       post?.setFocus(12, 26, 0.8);
       updateAmbience(frameDt, t);
-      post?.render(t);
+      if (Governor.draw) post?.render(t);
       return;
 
     case PHASE.SELECT:
@@ -150,7 +151,7 @@ export function present(alpha: number, frameDt: number): void {
       updateCameraSelect(frameDt);
       post?.setFocus(camera.position.distanceTo(_focus.set(0, 1.9, 0.2)), 7, 1.6);
       updateAmbience(frameDt, t);
-      post?.render(t);
+      if (Governor.draw) post?.render(t);
       // started last, so the clock begins after whatever this phase's first frame cost
       flushCamTween();
       return;
@@ -161,11 +162,12 @@ export function present(alpha: number, frameDt: number): void {
         updateCameraFight(frameDt);             // shake keeps running through hit-stop
         post?.setFocus(camera.position.distanceTo(_focus.set(rigState.mid, 1.7, PLANE_Z)), 28, 1.1);
         if (match.freeze <= 0) {
-          updateAmbience(frameDt, t);
+          // particles and drifting motes slow down with a KO's slow motion
+          updateAmbience(frameDt * presentScale(), t);
           syncHud(frameDt);
         }
       }
-      post?.render(t);
+      if (Governor.draw) post?.render(t);
       return;
   }
 }

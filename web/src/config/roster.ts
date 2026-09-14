@@ -92,23 +92,40 @@ export const ROSTER: readonly FighterDef[] = [
   },
 ];
 
+/*
+  The two summons are balanced to one budget: 10 damage per call — less than
+  a light attack plus a heavy, so a summon opens space or extends a combo
+  rather than deciding a round — with the same knockback and hitstun per
+  blow, the same rush speed and a strike window of the same length. What
+  differs is only how the damage is delivered.
+
+    EMBERWRAITH   6 on the leap + 4 on the cinder orb (one orb per call).
+                  Two chances to land, and the orb carries it at range, but
+                  only both together reach 10.
+    CARRION IDOL  10 in one slam whose shockwave widens along the floor.
+                  Hard to jump or walk out of, but it is one roll of the dice
+                  and it starts later.
+
+  Summon hits ignore hurtbox zones (collision.ts), so the budget is exact:
+  a head contact is not worth more than a leg.
+*/
 export const ASSIST_ROSTER: readonly AssistDef[] = [
   {
     id: 'emberwraith', name: 'EMBERWRAITH', title: 'Leap + cinder orb',
     build: 'wraith', pattern: 'leap',
     color: 0xf0c24b, hex: '#F0C24B',
-    rushSpeed: 15.5, strikeRange: 3.3,
-    activeFrom: 0.07, activeTo: 0.40,
-    damage: 11, knockback: 8.4, hitstun: 0.34,
-    orb: true, orbAt: 0.13, orbDamage: 9, orbKnockback: 7.0, orbHitstun: 0.30, orbSpeed: 13.5, orbLife: 1.5,
+    rushSpeed: 14.0, strikeRange: 3.0,
+    activeFrom: 0.07, activeTo: 0.39,
+    damage: 6, knockback: 9.0, hitstun: 0.38,
+    orb: true, orbAt: 0.13, orbDamage: 4, orbKnockback: 9.0, orbHitstun: 0.38, orbSpeed: 13.5, orbLife: 1.5,
   },
   {
     id: 'carrionidol', name: 'CARRION IDOL', title: 'Ground-slam shockwave',
     build: 'idol', pattern: 'slam',
     color: 0x9ad7c0, hex: '#9AD7C0',
-    rushSpeed: 12.0, strikeRange: 2.6,
-    activeFrom: 0.42, activeTo: 0.74,
-    damage: 15, knockback: 10.6, hitstun: 0.42,
+    rushSpeed: 14.0, strikeRange: 2.8,
+    activeFrom: 0.36, activeTo: 0.68,
+    damage: 10, knockback: 9.0, hitstun: 0.38,
     orb: false,
   },
 ];

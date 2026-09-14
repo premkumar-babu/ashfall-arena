@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { ASSET_ROOT, Assets, type LoadGroup } from './pipeline';
 
 /*
   Every downloaded texture is optional by construction. It is fetched after the
@@ -6,14 +7,15 @@ import * as THREE from 'three/webgpu';
   file, a blocked request or an offline first run costs the improvement and
   nothing else — the procedural stand-in it would have replaced stays put.
 
-  One LoadingManager sits behind every loader in the game, so the boot
-  curtain measures real requests rather than a count maintained by hand.
+  Fetching goes through the asset pipeline: a surface with a KTX2 copy in the
+  manifest arrives Basis-compressed and stays compressed on the GPU (BC7, ASTC
+  or ETC2, whichever the device samples), anything else loads as the image it
+  always was. The pipeline's LoadingManager is the one every loader shares.
 */
 
-export const TEXROOT = `${import.meta.env.BASE_URL}assets/`;
+export const TEXROOT = ASSET_ROOT;
 
-export const LOAD_MGR = new THREE.LoadingManager();
-const texLoader = new THREE.TextureLoader(LOAD_MGR);
+export const LOAD_MGR = Assets.manager;
 
 export interface ArtStats {
   want: number;
@@ -49,13 +51,16 @@ export interface TexOptions {
    * bad normal scale.
    */
   linear?: boolean;
+  /** Which loading-screen stage this counts toward. Defaults by folder. */
+  group?: LoadGroup;
 }
 
 export function loadTex(path: string, apply: (texture: THREE.Texture) => void, o: TexOptions = {}): void {
   TEXSTAT.want++;
-  texLoader.load(
-    TEXROOT + path,
+  const job = Assets.job(`assets/${path}`, o.group ?? (path.startsWith('vfx/') ? 'effects' : 'surfaces'));
+  Assets.loadTexture(path, job.progress).then(
     (t) => {
+      job.done();
       t.colorSpace = o.linear ? THREE.NoColorSpace : THREE.SRGBColorSpace;
       if (o.repeat) {
         t.wrapS = t.wrapT = THREE.RepeatWrapping;
@@ -72,8 +77,8 @@ export function loadTex(path: string, apply: (texture: THREE.Texture) => void, o
       }
       report();
     },
-    undefined,
     () => {
+      job.fail();
       TEXSTAT.failed++;
       report();
     },

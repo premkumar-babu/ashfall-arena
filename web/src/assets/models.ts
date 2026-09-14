@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import {
   ClipLib, applyLibraryClips, bindClips, bindLibraryToAll, captureRest, libraryTable, loadCharacterClips,
@@ -13,6 +14,7 @@ import { state } from '../game/state';
 import { ENV_MATS, MODEL_ENV } from '../render/stage';
 import { schedulePortraits } from '../ui/portraits';
 import { CLIPS, loadClipManifest, loadWithFallback, resetClipManifest, type ModelAsset } from './loader';
+import { Assets } from './pipeline';
 
 /*
   Character art.
@@ -34,9 +36,18 @@ interface Cast {
 }
 
 const CASTS: Readonly<Record<CastName, Cast>> = {
+  /* The default. Every fighter and both summons come from one library —
+     KayKit's Adventurers, CC0 — built on the same Rig_Medium skeleton the
+     animation library was authored for, so the cast shares one art style,
+     one proportion and one set of motions. About 2 MB optimised. */
+  compact: {
+    fit: 2.55,
+    fighters: ['assets/models/k1.glb', 'assets/models/k2.glb', 'assets/models/k3.glb', 'assets/models/k4.glb'],
+    assists: ['assets/models/ks1.glb', 'assets/models/ks2.glb'],
+  },
   /* Four rigged humanoids from the three.js examples — three Mixamo exports the
      library retargets onto without a special case, and a robot that carries
-     its own clips. Nine megabytes, animated on arrival. */
+     its own clips. Mixed styles: a demo cast, kept as an option. */
   classic: {
     fit: 3.2,
     fighters: ['assets/models/x1.glb', 'assets/models/x2.glb', 'assets/models/x3.glb', 'assets/models/x4.glb'],
@@ -47,12 +58,11 @@ const CASTS: Readonly<Record<CastName, Cast>> = {
     fighters: ['assets/models/p1.glb', 'assets/models/p2.glb', 'assets/models/p3.glb', 'assets/models/p4.glb'],
     assists: ['assets/models/s1.glb', 'assets/models/s2.glb'],
   },
-  compact: {
-    fit: 2.55,
-    fighters: ['assets/models/k1.glb', 'assets/models/k2.glb', 'assets/models/k3.glb', 'assets/models/k4.glb'],
-    assists: ['assets/models/ks1.glb', 'assets/models/ks2.glb'],
-  },
 };
+
+/* Versioned: the default moved to the consistent KayKit cast, and a choice
+   saved under the old key would have kept players on the mixed demo cast. */
+const CAST_KEY = 'ashfall.cast.v2';
 
 export function isCastName(name: unknown): name is CastName {
   return name === 'classic' || name === 'authored' || name === 'compact';
@@ -63,7 +73,9 @@ export const ASSETS = {
   /** Standard Mixamo cm → m normalisation, before the fit. */
   mixamoScale: 0.01,
   fitHeight: 3.2,
-  cast: 'classic' as CastName,
+  cast: 'compact' as CastName,
+  /** Skinned parts folded into single meshes (see mergeSkinnedParts). */
+  mergedParts: 0,
   fighters: [] as string[],
   assists: [] as string[],
   cache: new Map<string, ModelAsset>(),
@@ -103,6 +115,54 @@ export function reportAssets(): void {
         + (ASSETS.stubClips && !CLIPS.added && !lib ? ' (no motion)' : '')
       : done >= ASSETS.total ? 'procedural fallback' : `loading ${done}/${ASSETS.total}`;
   for (const fn of statusListeners) fn(ASSETS.status, ASSETS.loaded > 0);
+}
+
+/* ── draw-call reduction ────────────────────────────────────────────── */
+
+/*
+  A KayKit character arrives as seven to nine skinned parts — arms, legs,
+  body, head, hat, cape — all bound to one skeleton and sharing one atlas
+  material. Drawn as authored that is a draw call per part, per pass (scene
+  and shadow), per character on stage. Merged, it is one.
+
+  Only merged when that is provably the same picture: every part under one
+  parent, untransformed, the same skeleton bone for bone, identical bind
+  matrices, the same material and the same attribute layout, and no morph
+  targets. Anything else (the classic cast's two-material Xbot, the robot's
+  morphs) is left exactly as authored. Runs once on the cached original,
+  before any slot clones it.
+*/
+function mergeSkinnedParts(model: THREE.Object3D): number {
+  const parts: THREE.SkinnedMesh[] = [];
+  model.traverse((o) => {
+    if ((o as THREE.SkinnedMesh).isSkinnedMesh) parts.push(o as THREE.SkinnedMesh);
+  });
+  if (parts.length < 2) return 0;
+  const first = parts[0]!;
+  const layout = (m: THREE.SkinnedMesh): string =>
+    `${Object.keys(m.geometry.attributes).sort().join(',')}${m.geometry.index ? '+i' : ''}`;
+  const bones = first.skeleton.bones;
+  const compatible = parts.every((m) => m.parent === first.parent
+    && !Array.isArray(m.material) && m.material === first.material
+    && m.skeleton.bones.length === bones.length && m.skeleton.bones.every((b, i) => b === bones[i])
+    && m.bindMatrix.equals(first.bindMatrix) && m.matrix.equals(first.matrix)
+    && layout(m) === layout(first) && Object.keys(m.geometry.morphAttributes).length === 0);
+  if (!compatible) return 0;
+
+  const geometry = mergeGeometries(parts.map((m) => m.geometry), false);
+  if (!geometry) return 0;
+  const merged = new THREE.SkinnedMesh(geometry, first.material);
+  merged.name = `${first.name.split('_')[0] || 'model'}_merged`;
+  merged.position.copy(first.position);
+  merged.quaternion.copy(first.quaternion);
+  merged.scale.copy(first.scale);
+  first.parent!.add(merged);
+  merged.bind(first.skeleton, first.bindMatrix);
+  for (const m of parts) {
+    m.removeFromParent();
+    m.geometry.dispose();
+  }
+  return parts.length - 1;
 }
 
 /* ── fitting a model to the rig ─────────────────────────────────────── */
@@ -370,6 +430,8 @@ async function preload(paths: readonly string[], dress: Dress, gen: number): Pro
       return;
     }
     if (gen !== generation) return;
+    // a path shared by a fighter and a summon resolves to one object: the second pass finds nothing left to merge
+    ASSETS.mergedParts += mergeSkinnedParts(asset.object);
     ASSETS.cache.set(path, asset);
     ASSETS.loaded++;
     for (const c of asset.animations) if (!ASSETS.clips.includes(c.name)) ASSETS.clips.push(c.name);
@@ -409,13 +471,13 @@ function selectCast(name: CastName): CastName {
 }
 
 export function restoreCast(): CastName {
-  const q = queryParam('cast') ?? storageGet('ashfall.cast');
+  const q = queryParam('cast') ?? storageGet(CAST_KEY);
   return selectCast(isCastName(q) ? q : ASSETS.cast);
 }
 
 export function switchCast(name: CastName): void {
   if (name === ASSETS.cast) return;
-  storageSet('ashfall.cast', name);
+  storageSet(CAST_KEY, name);
   window.location.reload();
 }
 
@@ -427,6 +489,8 @@ export function beginAssetLoad(): void {
   const gen = generation;
   ASSETS.total = ASSETS.fighters.length + ASSETS.assists.length;
   reportAssets();
+  // tell the loading screen about the whole cast before the clip manifest lets the first request out
+  for (const path of [...ASSETS.fighters, ...ASSETS.assists]) Assets.expect(path, 'fighters');
 
   /* The library and the meshes race; whichever lands second binds. Starting
      the library first means its clips are usually parsed by the time a
@@ -457,7 +521,7 @@ export function beginAssetLoad(): void {
 export function resetAssets(): void {
   generation++;
   ASSETS.cache.clear();
-  ASSETS.loaded = ASSETS.failed = ASSETS.borrowed = ASSETS.stubClips = 0;
+  ASSETS.loaded = ASSETS.failed = ASSETS.borrowed = ASSETS.stubClips = ASSETS.mergedParts = 0;
   ASSETS.clips.length = 0;
   ASSETS.status = 'loading...';
   statusListeners.clear();

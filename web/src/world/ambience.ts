@@ -1,7 +1,8 @@
 import { Burst } from '../fx/particles';
 import { sparks, updatePortals, updateScorch, updateStreaks, updateVfx, type Portal, type Scorch } from '../fx/vfx';
 import { state } from '../game/state';
-import { arena, DUST, EMBERS } from './arena';
+import { arena, DUST, EMBERS, syncClouds } from './arena';
+import { updateLandscape } from './landscape';
 
 /*
   Everything on the stage that moves without being told to: branches and palm
@@ -29,9 +30,11 @@ export function updateAmbience(dt: number, t: number): void {
     pt.crown.rotation.x = Math.cos(t * 0.44 + pt.seed) * 0.055;
   }
   for (const c of a.clouds) {
-    c.g.position.x += c.sp * dt;
-    if (c.g.position.x > 170) c.g.position.x = -170;
+    c.pos.x += c.sp * dt;
+    if (c.pos.x > 170) c.pos.x = -170;
   }
+  syncClouds();
+  updateLandscape();                    // re-picks prop LODs only if the camera moved
   for (const b of a.birds) {
     b.g.position.x += b.sp * dt;
     b.g.position.y += Math.sin(t * 2.2 + b.ph) * 0.012;

@@ -90,13 +90,13 @@ function tryAttack(f: Fighter, intent: Intent): boolean {
   if (intent.punchDown) {
     intent.consumed |= ACT.PUNCH;
     enterState(f, S.PUNCH, MOVES.PUNCH);
-    Sfx.whiff();
+    Sfx.whiff(f.x);
     return true;
   }
   if (intent.kickDown) {
     intent.consumed |= ACT.KICK;
     enterState(f, S.KICK, MOVES.KICK);
-    Sfx.whiff();
+    Sfx.whiff(f.x);
     return true;
   }
   return false;
@@ -150,7 +150,7 @@ export function stepState(f: Fighter, intent: Intent, dt: number): void {
         // the arc belongs on the limb actually swinging, not on a guess a metre in front
         f.hitboxes[limbFor(f, move)].anchor.getWorldPosition(_arcP);
         spawnArc(_arcP.x, _arcP.y, f.face, f.def.accent, heavy ? (f.def.armed ? 1.02 : 0.86) : 0.58);
-        Sfx.swish(heavy ? 1 : 0.6);
+        Sfx.swish(heavy ? 1 : 0.6, f.x);
       }
       if (f.stateTime >= move.total) {
         // landing out of an air attack drops straight back to neutral
@@ -177,7 +177,7 @@ export function launchJump(f: Fighter, dir: number): void {
   f.vx = dir * f.def.speed * 0.92;
   enterState(f, S.JUMP);
   Burst.emit(_v.set(f.x, 0.12, PLANE_Z), 0xC9BCA2, 8, 2.6, 0.7);
-  Sfx.whoosh();
+  Sfx.jump(f.x);
 }
 
 export function startDash(f: Fighter, dir: number): void {
@@ -187,5 +187,5 @@ export function startDash(f: Fighter, dir: number): void {
   f.vx = dir * DASH.speed;
   Burst.emit(_v.set(f.x - dir * 0.3, 0.35, PLANE_Z), 0xD8CBB0, 12, 4.2, 0.6);
   spawnRing(_v.set(f.x - dir * 0.4, 0.9, PLANE_Z), 0xE8DCC4);
-  Sfx.whoosh();
+  Sfx.dash(f.x);
 }

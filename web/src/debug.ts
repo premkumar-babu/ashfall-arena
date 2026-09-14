@@ -3,6 +3,11 @@ import { attachClips, ClipLib } from './anim/animation';
 import { collectBones, normBone } from './anim/bones';
 import { ASSETS } from './assets/models';
 import { CLIPS } from './assets/loader';
+import { Assets } from './assets/pipeline';
+import { Governor } from './core/frame-governor';
+import { feelDebug } from './fx/juice';
+import { INSTANCING } from './world/instancing';
+import { landscapeStats } from './world/landscape';
 import { THEMES } from './config/themes';
 import type { BackendKind } from './core/renderer';
 import type { FixedStepLoop } from './core/loop';
@@ -75,6 +80,15 @@ export function installDebugHooks({ renderer, backend, loop }: DebugContext): vo
 
   window.__ash = {
     scene, camera, renderer, rigs, assistRigs, lib: ClipLib, assets: ASSETS, themes: THEMES,
+    // the asset pipeline: cache, counters, per-stage progress; instancing and prop LOD buckets
+    pipeline: Assets,
+    loading: () => Assets.snapshot(),
+    assetStats: () => Assets.stats(),
+    instancing: INSTANCING,
+    feel: feelDebug,
+    governor: () => Governor.stats(),
+    landscape: landscapeStats,
+    draws: () => ({ ...renderer.info.render, ...renderer.info.memory }),
     theme: () => state.theme,
     setTheme: (i: number) => applyTheme(i),
     pick: (nx: number, ny: number) => {

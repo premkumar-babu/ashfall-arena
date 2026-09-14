@@ -1,9 +1,11 @@
 import { GROUND, METER, PHASE, ROUNDS_TO_WIN, S, SPAWN_X } from '../config/constants';
 import { Sfx } from '../audio/sfx';
+import { fightCall, matchOver, resetFeel, roundIntro, roundOver } from '../fx/juice';
 import { resetInput, resetInputBuffers } from '../input/controller';
 import { announce, calloutAfter, clearAnnounce } from '../ui/announcer';
 import { dom } from '../ui/dom';
 import { resetKeyLegend } from '../ui/hud';
+import { focusMenu, releaseFocus } from '../ui/menu-nav';
 import { updateSelectUI } from '../ui/select';
 import { attachFighterBodies, physics } from '../physics/port';
 import { arena } from '../world/arena';
@@ -24,7 +26,6 @@ export const match = {
   time: 99,
   over: true,
   freeze: 0,
-  shake: 0,
   round: 1,
   epoch: 0,
   lastTrade: '—',
@@ -68,6 +69,7 @@ export function startMatch(): void {
   match.round = 1;
   match.draws = 0;
   match.paused = false;
+  resetFeel();
   document.body.classList.remove('paused');
   match.epoch++;                  // orphan any round timer from the last match
   state.phase = PHASE.FIGHT;
@@ -82,7 +84,7 @@ export function returnToSelect(): void {
   hideResults();
   state.phase = PHASE.SELECT;
   match.over = true;
-  match.shake = 0;
+  resetFeel();
   match.freeze = 0;
   match.paused = false;
   document.body.classList.remove('paused');
@@ -175,8 +177,12 @@ export function newRound(): void {
   if (state.phase === PHASE.FIGHT) {
     const word = ['', 'ROUND ONE', 'ROUND TWO', 'ROUND THREE', 'FINAL ROUND'][match.round] ?? `ROUND ${match.round}`;
     announce(word, 1100, 'slam');
+    roundIntro();
     calloutAfter(1250, () => {
-      if (state.phase === PHASE.FIGHT && !match.over) announce('FIGHT!', 800, 'slam');
+      if (state.phase === PHASE.FIGHT && !match.over) {
+        announce('FIGHT!', 800, 'slam');
+        fightCall();
+      }
     });
   }
 }
@@ -192,7 +198,7 @@ export function endRound(winner: Fighter | null, reason: string): void {
   match.over = true;
   const epoch = match.epoch;
 
-  Sfx.ko();
+  roundOver(reason);
   if (!winner) {
     match.draws++;
     for (const f of state.fighters) f.rounds = Math.min(ROUNDS_TO_WIN, f.rounds + 1);
@@ -251,9 +257,13 @@ export function showResults(champ: Fighter | null): void {
   });
 
   document.body.classList.add('results');
+  // in 2P versus somebody human always won
+  matchOver(draw ? null : state.mode1P ? !cpuWon : true);
+  focusMenu('ragain');                   // Enter or A is a rematch; the d-pad reaches the rest
 }
 
 export function hideResults(): void {
+  if (document.body.classList.contains('results')) releaseFocus();
   document.body.classList.remove('results');
 }
 
@@ -268,6 +278,7 @@ export function bumpCombo(f: Fighter): void {
   const el = dom.combo[f.slot === 0 ? 0 : 1];
   if (el.firstElementChild) el.firstElementChild.textContent = String(f.combo);
   if (f.combo < 2) return;
+  Sfx.combo(f.combo);
   el.classList.add('on');
   el.classList.remove('bump');
   void el.offsetWidth;                 // restart the keyframe on every hit

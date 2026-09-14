@@ -1,4 +1,5 @@
 import { onAssetStatus } from '../assets/models';
+import { Assets } from '../assets/pipeline';
 import { onArtProgress } from '../assets/texture-loader';
 import { Music } from '../audio/music';
 import { Sfx } from '../audio/sfx';
@@ -53,7 +54,8 @@ export function bindHud(disposer: Disposer): void {
   disposer.defer(onAssetStatus((status, anyLoaded) => devText('models', status, anyLoaded ? 'gold' : '')));
   disposer.defer(onArtProgress((s) => devText(
     'art',
-    `${s.got}/${s.want}${s.failed ? `  (${s.failed} missing)` : ''}`,
+    `${s.got}/${s.want}${s.failed ? `  (${s.failed} missing)` : ''}`
+      + (Assets.counters.ktx2 || Assets.counters.draco ? ` · KTX2 ${Assets.counters.ktx2} · DRACO ${Assets.counters.draco}` : ''),
     s.failed ? 'hot' : s.got === s.want ? 'gold' : '',
   )));
 }
@@ -97,6 +99,8 @@ export function syncHud(frameDt: number): void {
     const s = `scaleX(${(f.hp / 100).toFixed(4)})`;
     dom.hp[i as 0 | 1].style.transform = s;
     dom.chip[i as 0 | 1].style.transform = s;
+    // the last quarter of health pulses, so "one more hit" reads without looking at the number
+    dom.block[i as 0 | 1].classList.toggle('danger', f.hp > 0 && f.hp <= 25);
     f.lastHp = f.hp;
   }
 

@@ -1,42 +1,51 @@
+import type { Quality, QualityChoice } from '../config/quality';
 import { storageGetJSON, storageSetJSON } from '../core/platform';
+
+export { isQuality, isQualityChoice, type Quality, type QualityChoice } from '../config/quality';
 
 /*
   Player settings: the values themselves, and their persisted form. The
   switches that change them live in front-end.ts; everything that only needs
-  to read a setting (the camera reads shakeOn, the renderer reads quality)
-  imports this and nothing else.
+  to read a setting (the camera reads shakeOn, the renderer reads the quality
+  level) imports this and nothing else. What each quality level changes is
+  config/quality.ts.
 */
-
-export type Quality = 'low' | 'med' | 'high';
-
-/** Render-scale cap per quality level, applied as a maximum device pixel ratio. */
-export const QUALITY: Readonly<Record<Quality, number>> = { low: 0.7, med: 1.0, high: 2.0 };
-
-export function isQuality(q: unknown): q is Quality {
-  return q === 'low' || q === 'med' || q === 'high';
-}
 
 export type ModalBack = 'title' | 'pause';
 
 export const settings = {
   /** Where the modal returns to: the same pane is reachable from the title and from a paused match. */
   modalBack: 'title' as ModalBack,
-  quality: 'high' as Quality,
+  /** What the player picked: a preset, or AUTO. */
+  quality: 'auto' as QualityChoice,
+  /** The preset actually running. Under AUTO the frame governor can lower it. */
+  level: 'high' as Quality,
   shakeOn: true,
   bloomOn: true,
   /** A remembered mute, held until PLAY supplies the user gesture audio needs. */
   wantSfx: undefined as boolean | undefined,
+  /** Remembered music, started by the same gesture. */
+  wantMusic: undefined as boolean | undefined,
 };
+
+/** What RESET TO DEFAULTS restores. */
+export const DEFAULTS = {
+  volMaster: 0.5, volSfx: 1, volMusic: 0.7, volAmb: 0.6, quality: 'auto' as QualityChoice,
+  post: true, bloom: true, shake: true, haptics: true,
+} as const;
 
 export interface StoredSettings {
   sfx?: boolean;
   music?: boolean;
   post?: boolean;
-  quality?: Quality;
+  quality?: QualityChoice;
   shake?: boolean;
   bloom?: boolean;
   volMaster?: number;
   volSfx?: number;
+  volMusic?: number;
+  volAmb?: number;
+  haptics?: boolean;
 }
 
 const SETTINGS_KEY = 'ashfall.settings';

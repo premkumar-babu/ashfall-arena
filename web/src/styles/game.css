@@ -110,6 +110,46 @@ body.booted #boot{opacity:0;visibility:hidden;pointer-events:none;}
 }
 #bpct{color:#FFAA00;font-variant-numeric:tabular-nums;}
 #bwhat{text-transform:uppercase;letter-spacing:.16em;}
+#bbytes{color:#56566A;font-variant-numeric:tabular-nums;}
+
+/* the stages: dim while waiting, pulsing while their files arrive, lit when in */
+.bstages{
+  display:flex;flex-wrap:wrap;justify-content:center;gap:8px 16px;margin:0;padding:0;list-style:none;
+  font-family:var(--mono);font-size:8px;letter-spacing:.24em;color:#44445A;
+}
+.bstages li{position:relative;padding-left:11px;transition:color .3s;}
+.bstages li::before{
+  content:"";position:absolute;left:0;top:50%;width:5px;height:5px;margin-top:-3px;border-radius:50%;
+  background:currentColor;opacity:.5;
+}
+.bstages li[data-state="live"]{color:#C9A55A;}
+.bstages li[data-state="live"]::before{opacity:1;animation:bpulse 1s ease-in-out infinite;}
+.bstages li[data-state="done"]{color:#FFAA00;}
+.bstages li[data-state="done"]::before{opacity:1;box-shadow:0 0 8px rgba(255,170,0,.9);}
+.bstages li[data-state="warn"]{color:#C0584A;}
+@keyframes bpulse{50%{transform:scale(.55);}}
+.bhint{
+  font-family:var(--mono);font-size:8px;letter-spacing:.22em;text-transform:uppercase;color:#5C5C72;
+  opacity:0;transition:opacity .6s;
+}
+#boot.hinted{cursor:pointer;}
+#boot.hinted .bhint{opacity:1;}
+
+/* ── streaming pill ─────────────────────────────────────────
+   After the curtain: a quiet line for whatever is still arriving. */
+#stream{
+  position:fixed;left:50%;bottom:10px;z-index:9;transform:translate(-50%,8px);
+  display:flex;align-items:center;gap:10px;padding:5px 12px;border-radius:999px;
+  background:rgba(10,10,16,.62);box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);
+  font-family:var(--mono);font-size:8px;letter-spacing:.2em;text-transform:uppercase;color:#8A8AA0;
+  opacity:0;pointer-events:none;transition:opacity .4s,transform .4s;white-space:nowrap;
+}
+#stream.on{opacity:1;transform:translate(-50%,0);}
+.strack{position:relative;width:64px;height:2px;border-radius:2px;overflow:hidden;background:rgba(255,255,255,.1);}
+.strack i{position:absolute;inset:0;transform-origin:left center;transform:scaleX(0);background:#FFAA00;transition:transform .3s;}
+@media (prefers-reduced-motion: reduce){
+  .bstages li[data-state="live"]::before{animation:none;}
+}
 
 /* ── title screen ───────────────────────────────────────────
 

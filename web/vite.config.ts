@@ -6,6 +6,11 @@ import { defineConfig } from 'vite';
 
   public/assets is a directory junction to ../assets rather than a copy —
   the authored cast alone is ~146 MB, and two copies of it on disk would drift.
+
+  The Draco and Basis decoders need no configuration: DRACOLoader and
+  KTX2Loader locate them with `new URL('../libs/…', import.meta.url)`, which
+  Vite serves in dev and emits, hashed, into dist/assets on build — always the
+  copy that matches the installed three.js.
 */
 export default defineConfig({
   base: './',

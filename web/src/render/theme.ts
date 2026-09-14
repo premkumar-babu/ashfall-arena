@@ -6,6 +6,7 @@ import { announce } from '../ui/announcer';
 import { maybeById } from '../ui/dom';
 import { syncThemeUI } from '../ui/select';
 import { arena, tintStone } from '../world/arena';
+import { applyLandscapeTheme } from '../world/landscape';
 import { syncFloorTex } from '../world/surfaces';
 import { legacyIntensity } from './lights';
 import { post } from './post';
@@ -75,6 +76,7 @@ export function applyTheme(idx: number, quiet = false): void {
   a.petalMat.color.set(T.petal);
   a.petalMat2.color.set(T.petal2);
   a.ridgeMat.color.set(T.ridge ?? 0x8fa6b4);
+  applyLandscapeTheme(T);
 
   // the guardians belong to the courtyard, not to a dock at sunset
   for (const g of a.guardians) g.visible = T.statues !== false;

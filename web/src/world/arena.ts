@@ -8,6 +8,7 @@ import { scene } from '../render/stage';
 import {
   flagstoneTexture, hazeTexture, moteSprite, runeRingTexture, sunPathTexture, waterTexture,
 } from '../render/textures';
+import { collapseInstances, mergeStatic } from './instancing';
 
 /*
   The courtyard: floor, dais, water, pavilions, lanterns, balustrade, guardian
@@ -17,6 +18,11 @@ import {
 
   Built once. Every theme change re-tints what is here rather than rebuilding
   it, which is why so many materials are kept as named handles.
+
+  Repeated pieces — balusters, columns, lantern posts, blossom clusters, palm
+  fronds, cloud lumps — share one geometry each and are folded into
+  InstancedMesh draws once their group is built (see instancing.ts). The land
+  beyond the walls is world/landscape.ts.
 */
 
 type BasicMesh<G extends THREE.BufferGeometry = THREE.BufferGeometry> = THREE.Mesh<G, THREE.MeshBasicMaterial>;
@@ -31,7 +37,8 @@ export interface Brazier {
 }
 
 export interface Banner { readonly mesh: THREE.Mesh; readonly seed: number }
-export interface Cloud { readonly g: THREE.Group; readonly sp: number }
+/** One cloud: a drifting anchor and the lumps that ride it, all drawn by `arena.cloudMesh`. */
+export interface Cloud { readonly pos: THREE.Vector3; readonly sp: number; readonly lumps: readonly THREE.Matrix4[] }
 export interface Bird { readonly g: THREE.Group; readonly sp: number; readonly ph: number }
 export interface Palm { readonly g: THREE.Group; readonly crown: THREE.Group; readonly seed: number }
 export interface HazeLayer { readonly mesh: BasicMesh<THREE.PlaneGeometry>; readonly sp: number; readonly base: number; readonly y0: number }
@@ -54,6 +61,7 @@ export interface Arena {
   readonly banners: Banner[];
   readonly cloudMat: THREE.MeshBasicMaterial;
   readonly clouds: Cloud[];
+  readonly cloudMesh: THREE.InstancedMesh;
   readonly birdMat: THREE.MeshBasicMaterial;
   readonly birds: Bird[];
   readonly barkMat: THREE.MeshBasicMaterial;
@@ -75,6 +83,7 @@ export interface Arena {
 export const EMBERS = 420;
 export const DUST = 90;
 const MIST_Z = [-3.5, -9.5, -18.0];
+const CLOUD_LUMPS = 5;
 
 export let arena: Arena;
 
@@ -89,6 +98,20 @@ export function tintStone(m: THREE.MeshStandardMaterial, base: number, k: number
   const c = m.color.set(base).multiplyScalar(k);
   const mx = Math.max(c.r, c.g, c.b);
   if (mx > 0.84) c.multiplyScalar(0.84 / mx);
+}
+
+const cloudAnchor = new THREE.Matrix4();
+const cloudLump = new THREE.Matrix4();
+
+/** Write every cloud's lumps into the shared instanced draw. Called after the clouds move. */
+export function syncClouds(): void {
+  const a = arena;
+  let i = 0;
+  for (const c of a.clouds) {
+    cloudAnchor.makeTranslation(c.pos.x, c.pos.y, c.pos.z);
+    for (const lump of c.lumps) a.cloudMesh.setMatrixAt(i++, cloudLump.multiplyMatrices(cloudAnchor, lump));
+  }
+  a.cloudMesh.instanceMatrix.needsUpdate = true;
 }
 
 export function buildArena(theme: Theme): Arena {
@@ -172,6 +195,8 @@ export function buildArena(theme: Theme): Arena {
     return g;
   };
 
+  const columnGeo = new THREE.CylinderGeometry(0.34, 0.38, 6.4, 10);
+
   const makePavilion = (x: number, z: number, s: number, flip: boolean): void => {
     const p = new THREE.Group();
     p.position.set(x, 0, z);
@@ -185,7 +210,7 @@ export function buildArena(theme: Theme): Arena {
     p.add(base);
 
     for (const [cx, cz] of [[-3.4, -3.4], [3.4, -3.4], [-3.4, 3.4], [3.4, 3.4]] as const) {
-      const col = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.38, 6.4, 10), timberMat);
+      const col = new THREE.Mesh(columnGeo, timberMat);
       col.position.set(cx, 3.85, cz);
       col.castShadow = true;
       p.add(col);
@@ -208,6 +233,9 @@ export function buildArena(theme: Theme): Arena {
     finial.position.y = 13.1;
     p.add(finial);
 
+    // columns become one instanced draw; tile, trim, stone and timber one mesh each
+    collapseInstances(p);
+    mergeStatic(p);
     group.add(p);
   };
 
@@ -218,20 +246,24 @@ export function buildArena(theme: Theme): Arena {
 
   /* ── hanging lanterns: the arena's warm accent ─────────────────────── */
   const braziers: Brazier[] = [];
+  const lanternRig = new THREE.Group();
+  const postGeo = new THREE.CylinderGeometry(0.22, 0.26, 7.2, 8);
+  const armGeo = new THREE.BoxGeometry(1.5, 0.16, 0.16);
   [-13.5, -8.6, 8.6, 13.5].forEach((px, i) => {
     const depth = i === 0 || i === 3 ? -11.5 : -8.2;
 
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.26, 7.2, 8), timberMat);
+    const post = new THREE.Mesh(postGeo, timberMat);
     post.position.set(px, 3.6, depth);
     post.castShadow = true;
     post.receiveShadow = true;
-    group.add(post);
+    lanternRig.add(post);
 
-    const arm = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.16, 0.16), timberMat);
+    const arm = new THREE.Mesh(armGeo, timberMat);
     arm.position.set(px + (px < 0 ? 0.6 : -0.6), 7.0, depth);
     arm.castShadow = true;
-    group.add(arm);
+    lanternRig.add(arm);
 
+    // each flame keeps its own material: they flicker independently
     const flame = new THREE.Mesh(
       new THREE.SphereGeometry(0.52, 14, 12),
       new THREE.MeshStandardMaterial({ color: 0xD8402E, emissive: 0xFF6B3A, emissiveIntensity: 3.0, roughness: 0.65, metalness: 0.0 }),
@@ -250,25 +282,33 @@ export function buildArena(theme: Theme): Arena {
     }
     braziers.push({ light, flame, seed: Math.random() * 10, base: legacyIntensity(0.45), glow: null });
   });
+  group.add(lanternRig);
+  collapseInstances(lanternRig);
 
   /* ── stone balustrade defining the duelling ground ─────────────────── */
+  const balustrade = new THREE.Group();
+  const balusterGeo = new THREE.CylinderGeometry(0.15, 0.19, 0.86, 7);
   for (let rb = -13; rb <= 13; rb += 1.55) {
-    const baluster = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.19, 0.86, 7), stoneMat);
+    const baluster = new THREE.Mesh(balusterGeo, stoneMat);
     baluster.position.set(rb, 0.43, -6.4);
     baluster.castShadow = true;
     baluster.receiveShadow = true;
-    group.add(baluster);
+    balustrade.add(baluster);
   }
   const railTop = new THREE.Mesh(new THREE.BoxGeometry(28, 0.20, 0.52), stoneMat);
   railTop.position.set(0, 0.94, -6.4);
   railTop.castShadow = true;
-  group.add(railTop);
+  balustrade.add(railTop);
   const railBase = new THREE.Mesh(new THREE.BoxGeometry(28, 0.22, 0.66), stoneMat);
   railBase.position.set(0, 0.10, -6.4);
   railBase.receiveShadow = true;
-  group.add(railBase);
+  balustrade.add(railBase);
+  group.add(balustrade);
+  collapseInstances(balustrade);
+  mergeStatic(balustrade);
 
   /* ── guardian lions flanking the arena ─────────────────────────────── */
+  const eyeMat = toonMat(0x1E1A16);
   const guardian = (x: number, faceIn: number): THREE.Group => {
     const g = new THREE.Group();
     g.position.set(x, 0, -4.6);
@@ -296,17 +336,20 @@ export function buildArena(theme: Theme): Arena {
     maneL.position.set(0, 2.32, 0.16);
     g.add(maneL);
     for (const s of [-1, 1]) {
-      const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.055, 6, 5), toonMat(0x1E1A16));
+      const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.055, 6, 5), eyeMat);
       eyeL.position.set(s * 0.16, 2.40, 0.62);
       g.add(eyeL);
       const pawL = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.42, 0.5), st);
       pawL.position.set(s * 0.26, 1.44, 0.52);
+      pawL.castShadow = true;                      // same flags as the body, so they merge into it
       g.add(pawL);
     }
     const ball = new THREE.Mesh(new THREE.SphereGeometry(0.24, 8, 7), stoneTone(1.95));
     ball.position.set(0, 1.36, 0.86);
     g.add(ball);
 
+    // ten meshes a statue become six; the group stays whole so the theme can still hide it
+    mergeStatic(g);
     group.add(g);
     return g;
   };
@@ -345,24 +388,28 @@ export function buildArena(theme: Theme): Arena {
     trunk.castShadow = true;
     t.add(trunk);
 
+    const limbGeo = new THREE.CylinderGeometry(0.14, 0.30, 3.0, 6);
     for (const [bx, by, bz] of [[1.5, 5.6, 0.9], [-1.4, 6.2, -0.6], [0.6, 7.4, 0.4]] as const) {
-      const lb = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.30, 3.0, 6), barkToon);
+      const lb = new THREE.Mesh(limbGeo, barkToon);
       lb.position.set(bx, by, bz);
       lb.rotation.z = bx > 0 ? -0.85 : 0.85;
       lb.castShadow = true;
       t.add(lb);
     }
 
+    // one unit puff, scaled per cluster; two blossom tones instead of a material per puff
+    const puffGeo = new THREE.IcosahedronGeometry(1, 0);
+    const puffPale = toonMat(0xEFBBCE);
+    const puffDeep = toonMat(0xE18AAA);
     for (let cl = 0; cl < 16; cl++) {
-      const puff = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(0.85 + Math.random() * 0.6, 0),
-        toonMat(cl % 3 === 0 ? 0xEFBBCE : 0xE18AAA),
-      );
+      const r = 0.85 + Math.random() * 0.6;
+      const puff = new THREE.Mesh(puffGeo, cl % 3 === 0 ? puffPale : puffDeep);
       puff.position.set((Math.random() - 0.5) * 6.4, 7.4 + Math.random() * 3.0, (Math.random() - 0.5) * 4.2);
-      puff.scale.y = 0.72;
+      puff.scale.set(r, r * 0.72, r);
       puff.castShadow = true;
       t.add(puff);
     }
+    collapseInstances(t);
     group.add(t);
   }
 
@@ -371,41 +418,58 @@ export function buildArena(theme: Theme): Arena {
     const tw = new THREE.Group();
     tw.position.set(-46, 0, -120);
     tw.scale.setScalar(3.4);
+    const storeyGeo = new THREE.BoxGeometry(1, 2.1, 1);
+    const towerRoofGeo = new THREE.ConeGeometry(1.15, 1.15, 4);
     for (let lvl = 0; lvl < 5; lvl++) {
       const w = 3.1 - lvl * 0.42;
-      const storey = new THREE.Mesh(new THREE.BoxGeometry(w, 2.1, w), stoneMat);
+      const storey = new THREE.Mesh(storeyGeo, stoneMat);
+      storey.scale.set(w, 1, w);
       storey.position.y = 1.05 + lvl * 3.0;
       tw.add(storey);
-      const rf = new THREE.Mesh(new THREE.ConeGeometry(w * 1.15, 1.15, 4), tileMat);
+      const rf = new THREE.Mesh(towerRoofGeo, tileMat);
+      rf.scale.set(w, 1, w);
       rf.rotation.y = Math.PI / 4;
       rf.position.y = 2.65 + lvl * 3.0;
       tw.add(rf);
     }
+    collapseInstances(tw);
     group.add(tw);
   }
 
   /* ── clouds and birds ──────────────────────────────────────────────── */
+  /* Forty-five lumps in one draw. The clouds drift, so their instance
+     matrices are rewritten every frame (syncClouds) — forty-five small
+     multiplies, against forty-five draw calls. */
   const cloudMat = new THREE.MeshBasicMaterial({ color: theme.cloud, fog: false, transparent: true, opacity: theme.cloudOp });
   const clouds: Cloud[] = [];
   for (let cd = 0; cd < 9; cd++) {
-    const g = new THREE.Group();
-    for (let lump = 0; lump < 5; lump++) {
-      const pm = new THREE.Mesh(new THREE.IcosahedronGeometry(4 + Math.random() * 3.5, 0), cloudMat);
-      pm.position.set((lump - 2) * 4.2 + Math.random() * 2, Math.random() * 2.2, Math.random() * 3);
-      pm.scale.y = 0.52;
-      g.add(pm);
+    const lumps: THREE.Matrix4[] = [];
+    for (let lump = 0; lump < CLOUD_LUMPS; lump++) {
+      const r = 4 + Math.random() * 3.5;
+      lumps.push(new THREE.Matrix4().compose(
+        new THREE.Vector3((lump - 2) * 4.2 + Math.random() * 2, Math.random() * 2.2, Math.random() * 3),
+        new THREE.Quaternion(),
+        new THREE.Vector3(r, r * 0.52, r),
+      ));
     }
-    g.position.set(-120 + cd * 32 + Math.random() * 18, 34 + Math.random() * 18, -150 - Math.random() * 60);
-    scene.add(g);
-    clouds.push({ g, sp: 0.35 + Math.random() * 0.5 });
+    clouds.push({
+      pos: new THREE.Vector3(-120 + cd * 32 + Math.random() * 18, 34 + Math.random() * 18, -150 - Math.random() * 60),
+      sp: 0.35 + Math.random() * 0.5,
+      lumps,
+    });
   }
+  const cloudMesh = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 0), cloudMat, clouds.length * CLOUD_LUMPS);
+  cloudMesh.name = 'clouds';
+  cloudMesh.frustumCulled = false;         // they move every frame; a stale bound would cull them
+  scene.add(cloudMesh);
 
   const birdMat = new THREE.MeshBasicMaterial({ color: theme.bird, fog: false, side: THREE.DoubleSide });
   const birds: Bird[] = [];
+  const wingGeo = new THREE.PlaneGeometry(0.9, 0.16);
   for (let bd = 0; bd < 6; bd++) {
     const g = new THREE.Group();
     for (const s of [-1, 1]) {
-      const wing = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.16), birdMat);
+      const wing = new THREE.Mesh(wingGeo, birdMat);
       wing.position.x = s * 0.45;
       wing.rotation.z = s * 0.45;
       g.add(wing);
@@ -421,6 +485,9 @@ export function buildArena(theme: Theme): Arena {
   const barkMat = new THREE.MeshBasicMaterial({ color: theme.bark, fog: false });
   const petalMat = new THREE.MeshBasicMaterial({ color: theme.petal, fog: false });
   const petalMat2 = new THREE.MeshBasicMaterial({ color: theme.petal2, fog: false });
+  const branchGeo = new THREE.CylinderGeometry(0.10, 0.24, 7.5, 6);
+  const twigGeo = new THREE.CylinderGeometry(0.045, 0.09, 1, 5);
+  const clusterGeo = new THREE.IcosahedronGeometry(1, 0);
 
   const blossomBranch = (x: number, y: number, z: number, rot: number, s: number): THREE.Group => {
     const g = new THREE.Group();
@@ -428,28 +495,29 @@ export function buildArena(theme: Theme): Arena {
     g.rotation.z = rot;
     g.scale.setScalar(s);
 
-    const main = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.24, 7.5, 6), barkMat);
+    const main = new THREE.Mesh(branchGeo, barkMat);
     main.rotation.z = Math.PI / 2;
     g.add(main);
 
     for (let i = 0; i < 7; i++) {
       const t = -3.2 + i * 1.0;
-      const twig = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.09, 1.5 + Math.random(), 5), barkMat);
+      const twig = new THREE.Mesh(twigGeo, barkMat);
+      twig.scale.y = 1.5 + Math.random();
       twig.position.set(t, -0.5, (Math.random() - 0.5) * 0.7);
       twig.rotation.z = (Math.random() - 0.5) * 1.1;
       twig.rotation.x = (Math.random() - 0.5) * 0.8;
       g.add(twig);
 
       for (let c = 0; c < 5; c++) {
-        const cl = new THREE.Mesh(
-          new THREE.IcosahedronGeometry(0.34 + Math.random() * 0.26, 0),
-          Math.random() > 0.5 ? petalMat : petalMat2,
-        );
+        const r = 0.34 + Math.random() * 0.26;
+        const cl = new THREE.Mesh(clusterGeo, Math.random() > 0.5 ? petalMat : petalMat2);
         cl.position.set(t + (Math.random() - 0.5) * 1.3, -1.0 - Math.random() * 1.2, (Math.random() - 0.5) * 1.4);
-        cl.scale.y = 0.7;
+        cl.scale.set(r, r * 0.7, r);
         g.add(cl);
       }
     }
+    // the branch sways as a whole (ambience.ts), so its instances stay relative to it
+    collapseInstances(g);
     scene.add(g);
     return g;
   };
@@ -457,12 +525,17 @@ export function buildArena(theme: Theme): Arena {
 
   /* ── distant shoreline, kept below the haze line ───────────────────── */
   const ridgeMat = pbrMat(theme.ridge ?? 0x8FA6B4, 'rough');
+  const hills = new THREE.Group();
+  const hillGeo = new THREE.ConeGeometry(1, 0.82, 5);
   for (const [hx, hz, hr] of [[-96, -185, 30], [-30, -215, 40], [46, -200, 34], [116, -178, 26]] as const) {
-    const hill = new THREE.Mesh(new THREE.ConeGeometry(hr, hr * 0.82, 5), ridgeMat);
+    const hill = new THREE.Mesh(hillGeo, ridgeMat);
+    hill.scale.setScalar(hr);
     hill.rotation.y = Math.random() * 3;
     hill.position.set(hx, hr * 0.26, hz);
-    group.add(hill);
+    hills.add(hill);
   }
+  group.add(hills);
+  collapseInstances(hills);
 
   /* ── select-screen plinths ─────────────────────────────────────────── */
   const plinths = [-2.3, 2.3].map((px) => {
@@ -501,6 +574,11 @@ export function buildArena(theme: Theme): Arena {
      everything behind it is bright. */
   const palmMat = new THREE.MeshBasicMaterial({ color: theme.bark, fog: false });
   const palms: Palm[] = [];
+  // a unit trunk segment, tapered; each segment scales it to its own radius and length
+  const trunkGeo = new THREE.CylinderGeometry(0.9, 1, 1, 7);
+  const frondGeo = new THREE.ConeGeometry(0.46, 2.5, 4, 1, false);
+  const frondTipGeo = new THREE.ConeGeometry(0.30, 2.1, 4, 1, false);
+  const nutGeo = new THREE.SphereGeometry(0.24, 7, 6);
 
   const palmTree = (x: number, y: number, z: number, s: number, lean: number, flip: boolean): void => {
     const g = new THREE.Group();
@@ -514,10 +592,9 @@ export function buildArena(theme: Theme): Arena {
     const h = 1.35;
     let cur: THREE.Group = g;
     for (let i = 0; i < seg; i++) {
-      const piece = new THREE.Mesh(
-        new THREE.CylinderGeometry(r * (1 - i * 0.075), r * (1 - (i - 1) * 0.075), h, 7),
-        palmMat,
-      );
+      const rb = r * (1 - (i - 1) * 0.075);
+      const piece = new THREE.Mesh(trunkGeo, palmMat);
+      piece.scale.set(rb, h, rb);
       piece.position.y = h * 0.5;
       const joint = new THREE.Group();
       joint.add(piece);
@@ -538,12 +615,12 @@ export function buildArena(theme: Theme): Arena {
       frond.rotation.y = a;
       frond.rotation.z = -droop;
       // a frond is a long flattened wedge, split so it bends as it falls
-      const inner = new THREE.Mesh(new THREE.ConeGeometry(0.46, 2.5, 4, 1, false), palmMat);
+      const inner = new THREE.Mesh(frondGeo, palmMat);
       inner.rotation.z = -Math.PI / 2;
       inner.position.x = 1.25;
       inner.scale.z = 0.16;
       frond.add(inner);
-      const tip = new THREE.Mesh(new THREE.ConeGeometry(0.30, 2.1, 4, 1, false), palmMat);
+      const tip = new THREE.Mesh(frondTipGeo, palmMat);
       tip.rotation.z = -Math.PI / 2 - 0.5;
       tip.position.set(3.1, -0.45, 0);
       tip.scale.z = 0.14;
@@ -553,11 +630,15 @@ export function buildArena(theme: Theme): Arena {
 
     // a few coconuts read as detail even in pure black
     for (let c = 0; c < 3; c++) {
-      const nut = new THREE.Mesh(new THREE.SphereGeometry(0.24, 7, 6), palmMat);
+      const nut = new THREE.Mesh(nutGeo, palmMat);
       nut.position.set(Math.cos(c * 2.1) * 0.34, -0.2, Math.sin(c * 2.1) * 0.34);
       crown.add(nut);
     }
 
+    /* The crown sways (ambience.ts), the trunk does not: fold each on its own.
+       Twenty-nine meshes a palm become four draws. */
+    collapseInstances(crown);
+    collapseInstances(g, { skip: new Set([crown]) });
     scene.add(g);
     palms.push({ g, crown, seed: Math.random() * 10 });
   };
@@ -635,12 +716,13 @@ export function buildArena(theme: Theme): Arena {
     group, floor, dais, runes, water, waterTex,
     timberMat, tileMat, stoneMat, trimMat, stoneTones,
     braziers, guardians, banners,
-    cloudMat, clouds, birdMat, birds,
+    cloudMat, clouds, cloudMesh, birdMat, birds,
     barkMat, petalMat, petalMat2, branches,
     ridgeMat, plinths,
     embers, emberVel,
     palmMat, palms, sunPath,
     dust, dustSeed, hazeLayers,
   };
+  syncClouds();
   return arena;
 }

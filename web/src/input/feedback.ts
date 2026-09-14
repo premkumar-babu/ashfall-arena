@@ -19,9 +19,16 @@ const RUMBLE: Readonly<Record<HitKind, { strong: number; weak: number; ms: numbe
 
 const isHuman = (slot: number): boolean => slot === 0 || (slot === 1 && !state.mode1P);
 
+/** The VIBRATION setting. Checked at the moment of contact, so switching it off mid-match is immediate. */
+export const haptics = { on: true };
+
 function buzz(slot: number, strong: number, weak: number, ms: number): void {
+  if (!haptics.on) return;
   gamepads.rumble(slot, strong, weak, ms);
-  if (slot === 0 && input.touch?.active) navigator.vibrate?.(Math.round(ms * 0.5));
+  // browsers refuse (and log) vibration before the page has had a real tap
+  if (slot === 0 && input.touch?.active && navigator.userActivation?.hasBeenActive) {
+    navigator.vibrate?.(Math.round(ms * 0.5));
+  }
 }
 
 export function hitFeedback(attacker: number | null, defender: number, kind: HitKind): void {

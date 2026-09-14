@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import { A, BOUND, GRAVITY, PLANE_Z, S } from '../config/constants';
 import { ASSIST_COMMON as AC } from '../config/roster';
 import { Sfx } from '../audio/sfx';
+import { impact } from '../fx/juice';
 import { clamp, damp } from '../core/math';
 import { Burst } from '../fx/particles';
 import { fireScorch, firePortal, spawnArc, spawnRing } from '../fx/vfx';
@@ -34,6 +35,7 @@ export function launchAssist(a: Assist, foe: Fighter): void {
   a.t = 0;
   a.hitLanded = false;
   a.quaked = false;
+  a.orbT = -1;                          // no orb thrown yet this call; fireOrb sets it to 0
   a.state = A.RUSH;
   a.group.visible = true;
   firePortal(a.portal, a.x, AC.z, a.def.color);
@@ -85,7 +87,7 @@ export function stepAssist(a: Assist | null, foe: Fighter, dt: number, t: number
           a.vy = 8.6;
           spawnArc(a.x, a.y + 1.7, a.dir, d.color, 1.5);
         }
-        Sfx.arrive();
+        Sfx.arrive(a.x);
       }
       break;
 
@@ -94,7 +96,10 @@ export function stepAssist(a: Assist | null, foe: Fighter, dt: number, t: number
         a.vy += GRAVITY * dt;
         a.y = Math.max(0, a.y + a.vy * dt);
         a.x += a.dir * 6.2 * dt;
-        if (d.orb && !a.orbActive && !a.hitLanded && a.t >= (d.orbAt ?? 0)) fireOrb(a);
+        /* One orb per call. The check used to be "no orb in flight", so the
+           moment an orb hit and was spent a fresh one was thrown — a single
+           summon could land its orb two or three times. */
+        if (d.orb && a.orbT < 0 && !a.hitLanded && a.t >= (d.orbAt ?? 0)) fireOrb(a);
         if (a.t > 0.62 || (a.y <= 0 && a.t > 0.3)) {
           a.state = A.RETREAT;
           a.t = 0;
@@ -111,14 +116,14 @@ export function stepAssist(a: Assist | null, foe: Fighter, dt: number, t: number
           a.wave.scale.setScalar(0.6);
           a.wave.position.set(a.x, 0.06, AC.z);
           Burst.emit(_v.set(a.x, 0.4, PLANE_Z), d.color, 54, 8.5, 0.9);
-          match.shake = 1.15;
+          impact('quake');
           fireScorch(a.scorch, a.x, AC.z);
           // the slam is the biggest blow in the game: everything loose on the stage jumps
           physics?.blast(_v.set(a.x, 0.1, PLANE_Z), 0, 11, 7.5, 1.0);
           physics?.spawnDebris(_v, 0, 16, 1.3, d.color);
           spawnArc(a.x, 0.9, a.dir, d.color, 1.9);
           spawnRing(_v.set(a.x, 0.5, PLANE_Z), d.color);
-          Sfx.quake();
+          Sfx.quake(a.x);
         }
         if (a.t > 0.9) {
           a.state = A.RETREAT;
@@ -182,7 +187,7 @@ function fireOrb(a: Assist): void {
   a.orbX = a.x + a.dir * 0.6;
   a.orbY = a.y + 1.5;
   a.orb.visible = true;
-  Sfx.whiff();
+  Sfx.whiff(a.x);
 }
 
 function stepOrb(a: Assist, dt: number): void {

@@ -176,7 +176,7 @@ export class TouchControls {
       if (!this.held.has(act)) this.latched.add(act);
       this.held.add(act);
       b.classList.add('down');
-      navigator.vibrate?.(6);
+      if (ev.isTrusted) navigator.vibrate?.(6);    // a synthetic press has no user activation to vibrate with
     });
     const release = (ev: PointerEvent): void => {
       if (ev.pointerId !== owner) return;

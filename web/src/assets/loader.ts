@@ -1,13 +1,19 @@
 import type * as THREE from 'three/webgpu';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
-import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
+import type { GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import type { FighterState } from '../config/constants';
-import { LOAD_MGR } from './texture-loader';
+import { Assets, assetUrl, type LoadGroup, type ProgressFn } from './pipeline';
+
+export { assetUrl } from './pipeline';
 
 /*
   Model fetching, normalised to one shape — { object, animations } — whichever
   format arrived. FBXLoader hands back the Object3D directly; GLTFLoader wraps
   it in `.scene`.
+
+  glTF goes through the asset pipeline (pipeline.ts), which serves the
+  Draco/KTX2 copy from assets/opt when the manifest has one and shares one
+  parsed file between everything that asks for it.
 
   Promise-based. The monolith threaded success and failure callbacks through
   four levels of fallback, and a callback that fired twice (a late load after
@@ -20,12 +26,6 @@ export interface ModelAsset {
 }
 
 export const MODEL_TIMEOUT_MS = 12_000;
-
-/** Resolve a project-relative asset path against the Vite base, leaving absolute URLs alone. */
-export function assetUrl(path: string): string {
-  if (/^(https?:|data:|blob:)/i.test(path)) return path;
-  return import.meta.env.BASE_URL + path.replace(/^\.?\//, '');
-}
 
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -55,17 +55,20 @@ async function tryWrapped(url: string): Promise<ModelAsset> {
   const bin = window.atob(body.b64);
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return fromGltf(await new GLTFLoader().parseAsync(bytes.buffer, ''));
+  return fromGltf(await Assets.parseGLTF(bytes.buffer));
 }
 
-export function loadModel(url: string): Promise<ModelAsset> {
+export function loadModel(url: string, onProgress?: ProgressFn): Promise<ModelAsset> {
   const run = async (): Promise<ModelAsset> => {
     if (/\.fbx$/i.test(url)) {
-      const group = await new FBXLoader(LOAD_MGR).loadAsync(assetUrl(url));
+      const group = await new FBXLoader(Assets.manager).loadAsync(
+        assetUrl(url),
+        onProgress && ((e: ProgressEvent) => onProgress(e.loaded, e.lengthComputable ? e.total : 0)),
+      );
       return { object: group, animations: group.animations ?? [] };
     }
     try {
-      return fromGltf(await new GLTFLoader(LOAD_MGR).loadAsync(assetUrl(url)));
+      return fromGltf(await Assets.loadGLTF(url, onProgress));
     } catch {
       return tryWrapped(url);
     }
@@ -154,15 +157,19 @@ export function candidates(path: string): string[] {
   return list;
 }
 
-/** Walk the candidate spellings until one loads. */
-export async function loadWithFallback(path: string): Promise<ModelAsset> {
+/** Walk the candidate spellings until one loads. Reported to the loading screen as one job, whichever URL wins. */
+export async function loadWithFallback(path: string, group: LoadGroup = 'fighters'): Promise<ModelAsset> {
+  const job = Assets.job(path, group);
   let last: unknown = new Error('missing');
   for (const url of candidates(path)) {
     try {
-      return await loadModel(url);
+      const asset = await loadModel(url, job.progress);
+      job.done();
+      return asset;
     } catch (err) {
       last = err;
     }
   }
+  job.fail();
   throw last;
 }

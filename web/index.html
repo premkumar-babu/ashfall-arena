@@ -2,11 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#07070B">
+<meta name="mobile-web-app-capable" content="yes">
 <title>Ashfall Arena</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;900&family=Cinzel+Decorative:wght@700;900&family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;500&family=Teko:wght@500;600;700&family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&family=Bebas+Neue&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;900&family=Cinzel+Decorative:wght@700;900&family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;500&family=Teko:wght@500;600;700&family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&family=Bebas+Neue&family=Russo+One&display=swap">
 </head>
 <body>
 <div id="game">
@@ -93,20 +95,24 @@
           <div class="keyline super"><kbd>3</kbd> assist <kbd>0</kbd> super</div>
         </div>
       </div>
-      <div class="syskey"><kbd>B</kbd> boxes <kbd>M</kbd> sound <span id="sndstate">off</span> <kbd>P</kbd> post fx <kbd>N</kbd> music <kbd>T</kbd> stage <kbd>H</kbd> stats <kbd>Esc</kbd> pause</div>
+      <div class="syskey"><kbd>B</kbd> boxes <kbd>M</kbd> sound <span id="sndstate">off</span> <kbd>P</kbd> post fx <kbd>N</kbd> music <kbd>T</kbd> stage <kbd>Esc</kbd> pause</div>
     </div>
 
     <div class="combo p1" id="cb0"><span class="cnum">0</span><span class="clab">HIT COMBO</span></div>
     <div class="combo p2" id="cb1"><span class="cnum">0</span><span class="clab">HIT COMBO</span></div>
 
     <div id="call"><span></span></div>
+
+    <button id="hpause" class="hpause" type="button" aria-label="Pause" title="Pause (Esc)">
+      <svg viewBox="0 0 10 10" aria-hidden="true"><rect x="1" y="1" width="3" height="8" rx=".6"/><rect x="6" y="1" width="3" height="8" rx=".6"/></svg>PAUSE
+    </button>
   </div>
 
   <!-- ── boot ────────────────────────────────────────────────
-       Covers the title while the cast downloads. It is a curtain, not a
-       gate: the scene is already rendering underneath and the game stays
-       playable if an asset never arrives, so this hides a cold start
-       rather than blocking on one. -->
+       Covers the title while the courtyard and cast download. It is a
+       curtain, not a gate: the scene is already rendering underneath and
+       the game stays playable if an asset never arrives, so this hides a
+       cold start rather than blocking on one. Clicking it lifts it. -->
   <div id="boot">
     <div class="orbs" aria-hidden="true"><i></i><i></i><i></i></div>
     <div class="binner">
@@ -115,9 +121,21 @@
       <div class="brow">
         <span id="bpct">0%</span>
         <span id="bwhat">reaching for the cast</span>
+        <span id="bbytes"></span>
       </div>
+      <ol class="bstages" id="bstages" aria-label="loading stages">
+        <li data-g="arena">ARENA</li>
+        <li data-g="surfaces">SURFACES</li>
+        <li data-g="fighters">FIGHTERS</li>
+        <li data-g="motion">MOTION</li>
+      </ol>
+      <div class="bhint">click to play while the rest streams in</div>
     </div>
   </div>
+
+  <!-- ── streaming ───────────────────────────────────────────
+       Whatever is still arriving after the curtain lifts. -->
+  <div id="stream" aria-hidden="true"><span class="strack"><i id="sfill"></i></span><span id="stext"></span></div>
 
   <!-- ── title screen ────────────────────────────────────────
 
@@ -153,7 +171,7 @@
         <button id="mquit" class="tbtn ghost">QUIT</button>
       </nav>
 
-      <div class="tfoot"><span id="tcast">CLASSIC CAST</span> · <span id="tver">THREE.JS r128</span></div>
+      <div class="tfoot"><span id="tcast">CLASSIC CAST</span> · <span id="tver">THREE.JS</span></div>
     </div>
   </div>
 
@@ -185,53 +203,87 @@
           Hold jump to jump higher; hold block in the air to fall faster. Presses are buffered,
           so an attack pressed just before the last one ends still comes out.<br>
           <kbd>Space</kbd> / <kbd>Start</kbd> locks in and starts &middot; <kbd>Esc</kbd> / <kbd>Start</kbd> pauses &middot;
-          <kbd>T</kbd> changes stage &middot; <kbd>H</kbd> dev panel.
+          <kbd>T</kbd> changes stage.
           On a touch screen: stick on the left, buttons on the right.
           Player 2 is CPU until you pick <b>2P VERSUS</b> on the select screen.
         </p>
       </div>
 
       <div class="mpane" id="pane-settings" hidden>
-        <div class="srow">
-          <div><b>MASTER VOLUME</b><small>Everything the game makes</small></div>
-          <div class="sld"><input type="range" id="volMaster" min="0" max="100" value="50"><var id="volMasterV">50</var></div>
+        <!-- Three pages instead of one long list. ← / → on a focused tab switches page. -->
+        <div class="stabs" role="tablist" aria-label="Settings sections">
+          <button class="stab on" type="button" role="tab" data-tab="audio" aria-selected="true">AUDIO</button>
+          <button class="stab" type="button" role="tab" data-tab="video" aria-selected="false" tabindex="-1">VIDEO</button>
+          <button class="stab" type="button" role="tab" data-tab="controls" aria-selected="false" tabindex="-1">CONTROLS</button>
         </div>
-        <div class="srow">
-          <div><b>SFX VOLUME</b><small>Hits and guards, relative to master</small></div>
-          <div class="sld"><input type="range" id="volSfx" min="0" max="100" value="100"><var id="volSfxV">100</var></div>
-        </div>
-        <div class="srow">
-          <div><b>SOUND EFFECTS</b><small>Hits, guards, interface</small></div>
-          <button class="sw" id="swSfx" aria-pressed="false"><i></i><span>OFF</span></button>
-        </div>
-        <div class="srow">
-          <div><b>MUSIC</b><small>Streams a track, falls back to a synth bed</small></div>
-          <button class="sw" id="swMusic" aria-pressed="false"><i></i><span>OFF</span></button>
-        </div>
-        <div class="srow">
-          <div><b>POST-PROCESSING</b><small>Bloom, grain, vignette, chromatic aberration</small></div>
-          <button class="sw" id="swPost" aria-pressed="false"><i></i><span>OFF</span></button>
-        </div>
-        <div class="srow">
-          <div><b>BLOOM</b><small>The glow around bright pixels &mdash; the single most expensive pass</small></div>
-          <button class="sw" id="swBloom" aria-pressed="true"><i></i><span>ON</span></button>
-        </div>
-        <div class="srow">
-          <div><b>GRAPHICS QUALITY</b><small>Render scale &mdash; drop it if the frame rate dips</small></div>
-          <div class="seg" id="segQ">
-            <button data-q="low">LOW</button><button data-q="med">MEDIUM</button><button data-q="high">HIGH</button>
-          </div>
-        </div>
-        <div class="srow">
-          <div><b>SCREEN SHAKE</b><small>Camera kick on impact</small></div>
-          <button class="sw" id="swShake" aria-pressed="true"><i></i><span>ON</span></button>
-        </div>
-        <div class="srow">
-          <div><b>CONTROLS</b><small>Rebind every action for both players</small></div>
-          <button class="tbtn" id="openKeys" style="padding:9px 18px;font-size:10px;">REMAP KEYS</button>
-        </div>
-        <p class="mnote">Settings are remembered on this browser.</p>
 
+        <section class="spage" data-page="audio" role="tabpanel">
+          <div class="srow">
+            <div><b>MASTER VOLUME</b><small>Everything the game makes</small></div>
+            <div class="sld"><input type="range" id="volMaster" min="0" max="100" value="50" aria-label="Master volume"><var id="volMasterV">50</var></div>
+          </div>
+          <div class="srow">
+            <div><b>MUSIC VOLUME</b><small>The score, relative to master</small></div>
+            <div class="sld"><input type="range" id="volMusic" min="0" max="100" value="70" aria-label="Music volume"><var id="volMusicV">70</var></div>
+          </div>
+          <div class="srow">
+            <div><b>EFFECTS VOLUME</b><small>Hits, guards and the interface, relative to master</small></div>
+            <div class="sld"><input type="range" id="volSfx" min="0" max="100" value="100" aria-label="Effects volume"><var id="volSfxV">100</var></div>
+          </div>
+          <div class="srow">
+            <div><b>AMBIENCE VOLUME</b><small>Braziers, water and wind, placed around the courtyard</small></div>
+            <div class="sld"><input type="range" id="volAmb" min="0" max="100" value="60" aria-label="Ambience volume"><var id="volAmbV">60</var></div>
+          </div>
+          <div class="srow">
+            <div><b>SOUND</b><small>Mute everything at once (<kbd>M</kbd>)</small></div>
+            <button class="sw" id="swSfx" aria-pressed="false"><i></i><span>OFF</span></button>
+          </div>
+          <div class="srow">
+            <div><b>MUSIC</b><small>Streams a track, falls back to a synth bed (<kbd>N</kbd>)</small></div>
+            <button class="sw" id="swMusic" aria-pressed="false"><i></i><span>OFF</span></button>
+          </div>
+        </section>
+
+        <section class="spage" data-page="video" role="tabpanel" hidden>
+          <div class="srow">
+            <div><b>GRAPHICS QUALITY</b><small>Render scale, shadows, effects and scenery detail. AUTO fits the device and steps down if the frame rate drops</small></div>
+            <div class="seg" id="segQ">
+              <button data-q="auto">AUTO</button><button data-q="low">LOW</button><button data-q="med">MEDIUM</button><button data-q="high">HIGH</button>
+            </div>
+          </div>
+          <div class="srow">
+            <div><b>POST-PROCESSING</b><small>Bloom, grain, vignette, chromatic aberration (<kbd>P</kbd>)</small></div>
+            <button class="sw" id="swPost" aria-pressed="false"><i></i><span>OFF</span></button>
+          </div>
+          <div class="srow">
+            <div><b>BLOOM</b><small>The glow around bright pixels</small></div>
+            <button class="sw" id="swBloom" aria-pressed="true"><i></i><span>ON</span></button>
+          </div>
+          <div class="srow">
+            <div><b>SCREEN SHAKE</b><small>Camera kick on impact</small></div>
+            <button class="sw" id="swShake" aria-pressed="true"><i></i><span>ON</span></button>
+          </div>
+        </section>
+
+        <section class="spage" data-page="controls" role="tabpanel" hidden>
+          <div class="srow">
+            <div><b>KEY BINDINGS</b><small>Rebind every action for both players</small></div>
+            <button class="tbtn" id="openKeys" type="button" style="padding:9px 18px;font-size:10px;">REMAP KEYS</button>
+          </div>
+          <div class="srow">
+            <div><b>CONTROL REFERENCE</b><small>Keyboard, mouse, gamepad and touch at a glance</small></div>
+            <button class="tbtn" id="openCtrl" type="button" style="padding:9px 18px;font-size:10px;">VIEW CONTROLS</button>
+          </div>
+          <div class="srow">
+            <div><b>VIBRATION</b><small>Gamepad rumble and phone vibration on contact</small></div>
+            <button class="sw" id="swHaptic" aria-pressed="true"><i></i><span>ON</span></button>
+          </div>
+        </section>
+
+        <div class="sfoot">
+          <p class="mnote">Settings are remembered on this browser.</p>
+          <button class="tbtn ghost" id="sreset" type="button">RESET TO DEFAULTS</button>
+        </div>
       </div>
 
       <div class="mpane" id="pane-keys" hidden>
@@ -277,8 +329,9 @@
               <dd>Slow enough to be seen coming. Big knockback, so it ends a
                   combo rather than continuing one.</dd>
               <dt>ASSIST <em>50% meter</em></dt>
-              <dd>Emberwraith leaps in with a cinder orb; the Carrion Idol drops a
-                  shockwave that travels the floor. Six-second lockout.</dd>
+              <dd>Both deal 10. Emberwraith splits it: 6 on the leap, 4 on a cinder orb
+                  that flies on. The Carrion Idol lands all 10 in one slam whose shockwave
+                  travels the floor, later but harder to escape. Six-second lockout.</dd>
               <dt>OVERDRIVE <em>100% meter</em></dt>
               <dd>Eight seconds at double speed, trailing light. Spends the whole
                   bar, so it is Overdrive <b>or</b> two assists, never both.</dd>
@@ -357,7 +410,8 @@
 
     <div>
       <h2>PAUSED</h2>
-      <div class="phint">ESC OR SPACE TO RESUME</div>
+      <div class="pctx" id="pctx"></div>
+      <div class="phint">ESC TO RESUME &middot; &uarr; &darr; TO CHOOSE</div>
       <div class="prow">
         <button id="presume">RESUME</button>
         <button id="prestart">RESTART MATCH</button>
@@ -408,9 +462,9 @@
         <span class="themetag" id="themetag"></span>
         <span class="themelab castlab">CAST</span>
         <div class="modeswitch castswitch" id="castswitch">
-          <button data-cast="classic">CLASSIC</button>
+          <button data-cast="compact">KAYKIT</button>
+          <button data-cast="classic">DEMO</button>
           <button data-cast="authored">AUTHORED</button>
-          <button data-cast="compact">COMPACT</button>
         </div>
       </div>
       <button id="startbtn" class="beam">PRESS SPACE TO LOCK IN</button>

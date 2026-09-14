@@ -9,7 +9,7 @@ import { fxaa } from 'three/addons/tsl/display/FXAANode.js';
 import { ao } from 'three/addons/tsl/display/GTAONode.js';
 import { smaa } from 'three/addons/tsl/display/SMAANode.js';
 import type { Theme } from '../config/themes';
-import type { Quality } from '../ui/settings';
+import { QUALITY_PRESETS, type Quality } from '../config/quality';
 
 /*
   The post-processing pipeline.
@@ -48,18 +48,8 @@ import type { Quality } from '../ui/settings';
 const BLOOM_BASE = { strength: 0.32, radius: 0.45, threshold: 1.0 } as const;
 export const BLOOM: { strength: number; radius: number; threshold: number } = { ...BLOOM_BASE };
 
-interface QualityProfile {
-  readonly ao: boolean;
-  readonly aoSamples: number;
-  readonly aa: 'smaa' | 'fxaa';
-  readonly dof: boolean;
-}
-
-export const POST_PROFILES: Readonly<Record<Quality, QualityProfile>> = {
-  low: { ao: false, aoSamples: 8, aa: 'fxaa', dof: false },
-  med: { ao: true, aoSamples: 8, aa: 'smaa', dof: false },
-  high: { ao: true, aoSamples: 16, aa: 'smaa', dof: true },
-};
+/* What each quality level runs (ambient occlusion, AA, depth of field) is the
+   `post` column of config/quality.ts. */
 
 type DisposableNode = { dispose(): void };
 /** Nodes that render to their own target at runtime, where the typings omit the accessor. */
@@ -87,6 +77,10 @@ export class PostStack {
     focus: uniform(10),
     focalRange: uniform(24),
     bokeh: uniform(1.0),
+    // impact kicks, driven each frame by fx/juice.ts and added on top of the theme's grade
+    kickAb: uniform(0),
+    kickFlash: uniform(0),
+    kickDesat: uniform(0),
   };
 
   enabled = true;
@@ -113,7 +107,7 @@ export class PostStack {
   setQuality(q: Quality): void {
     if (q === this.quality) return;
     this.quality = q;
-    const p = POST_PROFILES[q];
+    const p = QUALITY_PRESETS[q].post;
 
     for (const n of this.owned) n.dispose();
     this.owned = [];
@@ -142,7 +136,7 @@ export class PostStack {
     this.bloomNode = bloomNode;
     this.owned.push(bloomNode);
 
-    const mapped = toneMapping(THREE.NeutralToneMapping, this.u.exposure, hdr.add(bloomNode.rgb));
+    const mapped = toneMapping(THREE.NeutralToneMapping, this.u.exposure.mul(float(1).add(this.u.kickFlash)), hdr.add(bloomNode.rgb));
     // the tone-mapping node carries alpha; only its colour is taken
     let ldr: THREE.Node = renderOutput(vec4(mapped.xyz, 1), THREE.NoToneMapping, THREE.SRGBColorSpace);
 
@@ -173,7 +167,7 @@ export class PostStack {
       const c = screenUV.sub(0.5);
       const r = length(c);
       // lens fringing grows toward the edge, so the centre of the fight stays clean
-      const off = c.mul(u.aberration).mul(r).mul(2.4);
+      const off = c.mul(u.aberration.add(u.kickAb)).mul(r).mul(2.4);
       const col = vec3(
         src.sample(screenUV.add(off)).r,
         src.sample(screenUV).g,
@@ -181,7 +175,7 @@ export class PostStack {
       ).toVar();
 
       const lum = dot(col, vec3(0.2126, 0.7152, 0.0722)).toVar();
-      col.assign(mix(vec3(lum), col, u.saturation));
+      col.assign(mix(vec3(lum), col, u.saturation.mul(float(1).sub(u.kickDesat))));
       col.assign(col.sub(0.5).mul(u.contrast).add(0.5).clamp(0, 1));
       const sh = float(1).sub(smoothstep(0.0, 0.55, lum));
       const hi = smoothstep(0.45, 1.0, lum);
@@ -207,6 +201,13 @@ export class PostStack {
   setBloomOn(on: boolean): void {
     this.bloomOn = on;
     if (this.bloomNode) this.bloomNode.strength.value = on ? BLOOM.strength : 0;
+  }
+
+  /** Per-frame impact kicks: extra fringing, an exposure flash (fraction), and desaturation (0–1). */
+  setKick(aberration: number, flash: number, desat: number): void {
+    this.u.kickAb.value = aberration;
+    this.u.kickFlash.value = flash;
+    this.u.kickDesat.value = desat;
   }
 
   /** Where the depth of field focuses (distance from camera) and how quickly it falls off. */
@@ -242,7 +243,7 @@ export class PostStack {
   /** Dev-panel readout. */
   label(): string {
     if (!this.enabled) return 'OFF';
-    const p = POST_PROFILES[this.quality ?? 'high'];
+    const p = QUALITY_PRESETS[this.quality ?? 'high'].post;
     const parts = [p.ao ? 'GTAO' : null, this.bloomOn ? `BLOOM ${BLOOM.strength.toFixed(2)}` : null, p.aa.toUpperCase(), p.dof ? 'DOF' : null];
     return parts.filter(Boolean).join(' · ');
   }

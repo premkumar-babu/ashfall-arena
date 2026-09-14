@@ -1,7 +1,9 @@
 import './styles/game.css';
 import './styles/touch.css';
+import './styles/screens.css';
 
 import { beginAssetLoad, resetAssets, restoreCast } from './assets/models';
+import { Assets } from './assets/pipeline';
 import { resetArtStats } from './assets/texture-loader';
 import { Music } from './audio/music';
 import { Sfx } from './audio/sfx';
@@ -13,13 +15,15 @@ import { createRenderer } from './core/renderer';
 import { Viewport } from './core/resize';
 import { PerfMonitor } from './core/stats';
 import { installDebugHooks, removeDebugHooks } from './debug';
+import { Ambience } from './audio/ambience';
 import { Flip } from './fx/flipbook';
+import { bindFeelLoop, resetFeel } from './fx/juice';
 import { initParticles, resetParticles } from './fx/particles';
 import { resetSwingRibbons } from './fx/ribbon';
 import { initStrikeLights, resetStrikeLights } from './fx/strike-lights';
 import { initVfx, resetVfx } from './fx/vfx';
 import { present, simulate } from './game/game';
-import { applyIdentity, cancelMatchTimers, renderStocks } from './game/match';
+import { applyIdentity, cancelMatchTimers, match, renderStocks } from './game/match';
 import { buildRigs, resetRigs } from './game/rigs';
 import { state } from './game/state';
 import { resetVolumes } from './game/volumes';
@@ -36,8 +40,13 @@ import { wireFrontEnd } from './ui/front-end';
 import { bindHud } from './ui/hud';
 import { disposePortraits, initPortraits, refreshPortraits } from './ui/portraits';
 import { buildCastUI, buildSelectUI, buildStats, buildThemeUI, updateSelectUI } from './ui/select';
-import { isQuality, loadSettings, QUALITY, settings } from './ui/settings';
+import { loadSettings, settings } from './ui/settings';
+import { PHASE } from './config/constants';
+import { detectQuality, isQualityChoice, QUALITY_PRESETS } from './config/quality';
+import { Governor } from './core/frame-governor';
 import { buildArena } from './world/arena';
+import { resetInstancingStats } from './world/instancing';
+import { buildLandscape, disposeLandscape, loadLandscapeProps } from './world/landscape';
 import { loadSurfaces, resetSurfaces } from './world/surfaces';
 
 /*
@@ -68,6 +77,12 @@ async function boot(): Promise<() => void> {
       renderer.domElement.remove();
     });
 
+    /* Before anything asks for a file: the pipeline reads the optimised-asset
+       manifest, and KTX2 needs the device to say which compressed formats it
+       samples. Disposed just before the renderer, after everything using it. */
+    await Assets.init(renderer);
+    disposer.defer(() => Assets.dispose());
+
     createStage(renderer, state.theme, host.clientWidth / Math.max(1, host.clientHeight));
     disposer.defer(() => {
       disposeObject(scene);
@@ -75,19 +90,25 @@ async function boot(): Promise<() => void> {
       disposeSharedMaterials();
     });
 
+    // quality before anything is sized: AUTO starts from what the device looks capable of
     const stored = loadSettings();
-    if (isQuality(stored.quality)) settings.quality = stored.quality;
-    const viewport = disposer.track(new Viewport(host, renderer, camera, QUALITY[settings.quality]));
+    if (isQualityChoice(stored.quality)) settings.quality = stored.quality;
+    settings.level = settings.quality === 'auto' ? detectQuality(backend) : settings.quality;
+    const viewport = disposer.track(new Viewport(host, renderer, camera, QUALITY_PRESETS[settings.level].pixelRatio));
 
     // the world: stage set, effect pools, fighters
     buildArena(state.theme);
+    buildLandscape(state.theme);                   // terrain and walls now; props stream in below
     initParticles();
     initVfx();
     Flip.load();
     initStrikeLights();
     loadSurfaces();
+    void loadLandscapeProps();
     buildRigs();
     disposer.defer(() => {
+      disposeLandscape();
+      resetInstancingStats();
       resetRigs();
       resetVolumes();
       resetVfx();
@@ -110,7 +131,7 @@ async function boot(): Promise<() => void> {
     }
     disposer.defer(disposePhysics);
 
-    createPost(renderer, scene, camera, settings.quality);
+    createPost(renderer, scene, camera, settings.level);
     disposer.defer(disposePost);
     bindThemeRenderer(renderer);
     disposer.defer(() => bindThemeRenderer(null));
@@ -143,6 +164,8 @@ async function boot(): Promise<() => void> {
       cancelMatchTimers();
       clearAnnounce();
       resetCameraRig();
+      resetFeel();
+      Ambience.stop();
       Music.dispose();
       Sfx.dispose();
     });
@@ -150,12 +173,22 @@ async function boot(): Promise<() => void> {
     const loop = new FixedStepLoop({
       update: simulate,
       render: (alpha, frameDt) => {
+        // decides whether this frame reaches the GPU, and watches frame time for AUTO quality
+        Governor.begin(frameDt, {
+          paused: state.phase === PHASE.FIGHT && match.paused,
+          measuring: state.phase === PHASE.FIGHT || state.phase === PHASE.SELECT,
+        });
         present(alpha, frameDt);
-        perf.update();
+        Boot.tick();                               // curtain on the title, streaming pill after it
+        if (Governor.draw) perf.update();
       },
     }, SIM_HZ);
+    bindFeelLoop(loop);                            // KO slow motion drives the loop's time scale
     loop.start(renderer);
-    disposer.defer(() => loop.stop());             // registered last, so it runs first
+    disposer.defer(() => {                         // registered last, so it runs first
+      loop.stop();
+      bindFeelLoop(null);
+    });
 
     installDebugHooks({ renderer, backend, loop });
     disposer.defer(removeDebugHooks);

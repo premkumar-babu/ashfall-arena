@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu';
 import type { Theme } from '../config/themes';
 import { legacyIntensity } from './lights';
 import { skyTexture } from './textures';
-import type { Quality } from '../ui/settings';
+import { QUALITY_PRESETS, type Quality } from '../config/quality';
 
 /*
   The scene, the camera, the sky and the light rig.
@@ -138,16 +138,11 @@ export function refreshModelEnv(theme: Theme): void {
   old?.dispose();
 }
 
-/* Shadow cost per quality level. The map resizes on the next render; the blur
-   radius and sample count are uniforms, so switching never recompiles. */
-const SHADOW_QUALITY: Readonly<Record<Quality, { size: number; radius: number; blur: number }>> = {
-  low: { size: 1024, radius: 3, blur: 6 },
-  med: { size: 2048, radius: 5, blur: 10 },
-  high: { size: 2048, radius: 7, blur: 16 },
-};
-
+/* Shadow cost per quality level (config/quality.ts). The map resizes on the
+   next render; the blur radius and sample count are uniforms, so switching
+   never recompiles. */
 export function setShadowQuality(q: Quality): void {
-  const s = SHADOW_QUALITY[q];
+  const s = QUALITY_PRESETS[q].shadow;
   const sh = key.shadow;
   sh.mapSize.set(s.size, s.size);
   sh.radius = s.radius;

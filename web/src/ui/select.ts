@@ -135,8 +135,8 @@ export function syncThemeUI(): void {
 /* The cast switch reloads, so it is styled and worded as a mode, not a
    toggle: picking one is picking which files the next load fetches. */
 const CAST_BLURB: Record<CastName, string> = {
-  classic: 'three.js example cast — 9 MB, animated on arrival, reloads the page',
-  compact: 'KayKit cast — 2 MB, fully animated, reloads the page',
+  compact: 'KayKit Adventurers — one art style for every fighter and summon, 2 MB (default), reloads the page',
+  classic: 'three.js demo models — mixed styles, 3 MB, reloads the page',
   authored: 'The authored cast — 146 MB, reloads the page',
 };
 

@@ -1,0 +1,237 @@
+/* ── screens ──────────────────────────────────────────────────
+   Loaded after game.css. The overlays used to switch with display:none,
+   which cuts: no property can transition out of display:none. Every
+   overlay is now always laid out and hidden with opacity + visibility, so
+   it fades, and its panel lifts into place. Visibility flips instantly on
+   the way in (so the overlay can take focus at once) and only after the
+   fade on the way out. */
+
+#title,#modal,#pause,#results,#bye{
+  display:grid;
+  opacity:0;visibility:hidden;pointer-events:none;
+  transition:opacity .3s ease,visibility 0s linear .3s;
+}
+body.attract #title,body.titling #title,
+body.modal #modal,body.paused #pause,body.results #results,body.bye #bye{
+  opacity:1;visibility:visible;pointer-events:auto;
+  transition:opacity .26s ease,visibility 0s;
+}
+
+/* panels: a short lift with a soft overshoot on the way in */
+.mbox,.rbox,#pause > div,#bye > div,#title .tinner{
+  opacity:0;transform:translateY(18px) scale(.965);
+  transition:transform .44s cubic-bezier(.16,1,.3,1),opacity .28s ease;
+}
+body.modal .mbox,body.results .rbox,body.paused #pause > div,body.bye #bye > div,
+body.attract #title .tinner,body.titling #title .tinner{
+  opacity:1;transform:none;
+}
+.rbox{animation:none;}                /* replaced by the transition above */
+
+/* ── staggered controls ─────────────────────────────────────
+   Entrances use the individual `translate` property so a button's own
+   hover `transform` is never delayed by its stagger. The title menu
+   appears out of display:none, so it animates; pause and results are
+   visibility-driven, so they transition. --i is the stagger slot. */
+.tmenu > :nth-child(2),#pause .prow > :nth-child(2),.rrow > :nth-child(2){--i:1;}
+.tmenu > :nth-child(3),#pause .prow > :nth-child(3),.rrow > :nth-child(3){--i:2;}
+.tmenu > :nth-child(4),#pause .prow > :nth-child(4){--i:3;}
+.tmenu > :nth-child(5),#pause .prow > :nth-child(5){--i:4;}
+#pause .prow > :nth-child(6){--i:5;}
+#pause .prow > :nth-child(7){--i:6;}
+
+body.titling .tmenu > .tbtn{
+  animation:menuIn .46s cubic-bezier(.16,1,.3,1) both;
+  animation-delay:calc(var(--i,0) * 55ms + 80ms);
+}
+@keyframes menuIn{
+  from{opacity:0;translate:0 12px;}
+  to{opacity:1;translate:0 0;}
+}
+
+#pause .prow button,.rrow .tbtn,.rscore,.rstats > div,.pctx{
+  opacity:0;translate:0 10px;
+  transition:
+    opacity .3s ease var(--d,0s),translate .44s cubic-bezier(.16,1,.3,1) var(--d,0s),
+    color .16s,border-color .16s,background .18s,transform .16s,letter-spacing .16s,box-shadow .16s;
+}
+body.paused #pause .prow button,body.paused .pctx,
+body.results .rrow .tbtn,body.results .rscore,body.results .rstats > div{
+  opacity:1;translate:0 0;
+}
+body.paused .pctx{--d:.06s;}
+body.paused #pause .prow button{--d:calc(var(--i,0) * 35ms + 90ms);}
+body.results .rscore{--d:.16s;}
+body.results .rstats > div:nth-child(1){--d:.24s;}
+body.results .rstats > div:nth-child(2){--d:.30s;}
+body.results .rstats > div:nth-child(3){--d:.36s;}
+body.results .rrow .tbtn{--d:calc(var(--i,0) * 60ms + .42s);}
+
+/* modal panes and settings pages cross-fade when they change */
+.mpane:not([hidden]),.spage:not([hidden]){animation:paneIn .3s ease both;}
+@keyframes paneIn{
+  from{opacity:0;translate:0 6px;}
+  to{opacity:1;translate:0 0;}
+}
+
+/* ── focus: the menu cursor ─────────────────────────────────
+   Keyboard and gamepad focus get the same amber treatment a hover does. */
+#pause button:focus-visible{
+  outline:none;background:var(--amber);color:#0A0A10;border-color:var(--amber);
+  box-shadow:0 0 0 1px rgba(255,170,0,.5),0 0 26px rgba(255,170,0,.35);
+}
+#pause button.quit:focus-visible{background:var(--crimson);color:#fff;border-color:var(--crimson);}
+#modal :is(.sw,.seg button,#mclose,.kbtn):focus-visible{
+  outline:none;border-color:var(--amber);
+  box-shadow:0 0 0 2px rgba(255,170,0,.75),0 0 18px rgba(255,170,0,.35);
+}
+.seg button:focus-visible{color:var(--text-1);}
+.sld input[type=range]:focus-visible{
+  outline:none;border-radius:6px;box-shadow:0 0 0 2px rgba(255,170,0,.55),0 0 16px rgba(255,170,0,.3);
+}
+
+/* ── settings tabs ──────────────────────────────────────────── */
+.stabs{
+  display:flex;gap:4px;padding:3px;margin:0 0 8px;
+  border:1px solid var(--metal);border-radius:9px;background:rgba(0,0,0,.28);
+}
+.stab{
+  flex:1;cursor:pointer;
+  font-family:var(--tech);font-weight:700;font-size:10px;letter-spacing:.24em;text-indent:.24em;
+  padding:9px 10px;border:0;border-radius:6px;
+  color:var(--text-2);background:transparent;
+  transition:color .18s,background .22s,box-shadow .18s;
+}
+.stab:hover{color:var(--text-1);}
+.stab:focus-visible{outline:none;box-shadow:0 0 0 2px rgba(255,170,0,.75);}
+.stab.on{
+  color:#0A0A10;background:linear-gradient(180deg,#FFD36B,var(--amber));
+  box-shadow:0 4px 18px -6px rgba(255,170,0,.7);
+}
+.stab.on:focus-visible{box-shadow:0 0 0 2px #fff,0 4px 18px -6px rgba(255,170,0,.7);}
+.spage .srow:last-child{border-bottom:0;}
+.sfoot{
+  display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  margin-top:10px;padding-top:14px;border-top:1px solid rgba(255,255,255,.08);
+}
+.sfoot .mnote{margin:0;}
+.sfoot .tbtn{padding:9px 16px;font-size:10px;letter-spacing:.2em;}
+
+/* ── pause: where the match stands ──────────────────────────── */
+.pctx{
+  display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px 12px;
+  margin:4px 0 18px;
+  font-family:var(--hud);font-size:13px;font-weight:600;letter-spacing:.14em;
+  color:var(--text-2);font-variant-numeric:tabular-nums;
+}
+.pctx b{color:var(--amber);font-size:19px;font-weight:700;letter-spacing:.08em;text-shadow:0 0 18px rgba(255,170,0,.45);}
+.pctx i{display:block;width:4px;height:4px;border-radius:50%;background:var(--metal-hi);}
+#pause .phint{margin-bottom:20px;}
+
+/* ── HUD ────────────────────────────────────────────────────── */
+
+/* the status rail drops in when a fight starts and lifts away when it ends */
+#hud .status{transition:opacity .28s ease,visibility .28s,transform .5s cubic-bezier(.16,1,.3,1);}
+body.selecting #hud .status,body.attract #hud .status,body.titling #hud .status{transform:translateY(-26px);}
+
+/* a pause control for mouse players; touch has its own under the clock */
+.hpause{
+  position:absolute;left:50%;top:116px;translate:-50% 0;z-index:2;
+  display:flex;align-items:center;gap:7px;
+  pointer-events:auto;cursor:pointer;
+  font-family:var(--tech);font-weight:700;font-size:9px;letter-spacing:.22em;
+  padding:5px 12px 5px 10px;border-radius:999px;
+  color:var(--text-2);background:rgba(10,10,16,.55);border:1px solid var(--metal);
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  opacity:.5;transition:opacity .2s,color .2s,border-color .2s,box-shadow .2s;
+}
+.hpause svg{width:9px;height:9px;fill:currentColor;}
+.hpause:hover,.hpause:focus-visible{
+  opacity:1;color:var(--amber);border-color:var(--amber);outline:none;
+  box-shadow:0 0 18px rgba(255,170,0,.3);
+}
+body.touch .hpause,body.selecting .hpause,body.paused .hpause,body.results .hpause{display:none;}
+
+/* a hit kicks the struck fighter's health bar sideways; `translate`, so the bar's skew is untouched */
+.fighter-block.jolt .bar{animation:barJolt .26s cubic-bezier(.2,.8,.3,1);}
+.fighter-block.jolt-heavy .bar{animation:barJoltHeavy .42s cubic-bezier(.2,.8,.3,1);}
+.fighter-block.danger.jolt .bar,.fighter-block.danger.jolt-heavy .bar{animation-name:barJoltHeavy;}
+@keyframes barJolt{
+  0%{translate:0 0;} 20%{translate:-5px 1px;} 45%{translate:4px -1px;} 70%{translate:-2px 0;} 100%{translate:0 0;}
+}
+@keyframes barJoltHeavy{
+  0%{translate:0 0;filter:brightness(1.8);} 15%{translate:-10px 2px;} 35%{translate:8px -2px;}
+  55%{translate:-5px 1px;filter:brightness(1);} 78%{translate:2px 0;} 100%{translate:0 0;}
+}
+
+/* health in the last quarter: the frame pulses crimson */
+.fighter-block.danger .bar{animation:hpDanger .85s ease-in-out infinite;}
+@keyframes hpDanger{
+  0%,100%{box-shadow:inset 0 1px 0 rgba(255,255,255,.16),inset 0 -2px 4px rgba(0,0,0,.95),0 0 0 1px rgba(0,0,0,.9),0 4px 16px rgba(0,0,0,.75);}
+  50%{box-shadow:inset 0 1px 0 rgba(255,255,255,.16),inset 0 -2px 4px rgba(0,0,0,.95),0 0 0 1px rgba(230,57,70,.95),0 0 24px rgba(230,57,70,.7);}
+}
+.fighter-block.danger .fname{color:#FFB2B8;}
+
+/* ── headline type ──────────────────────────────────────────
+   The ornate Cinzel Decorative headings are replaced by Russo One: a heavy,
+   rounded sports face that sits with the chunky KayKit cast instead of
+   against it. It ships in one weight, so the old 900 is reset to 400 —
+   asking for 900 would make the browser smear a fake bold. */
+:root{
+  --logo:"Russo One","Rajdhani",system-ui,sans-serif;
+  --display:"Russo One","Rajdhani",system-ui,sans-serif;
+}
+#title h1,.tglow,.bmark,#call span,#results h2,#bye h2,#pause h2,.mbox h3,.rverdict,.selcenter h1{
+  font-weight:400;
+}
+#title h1,.tglow{letter-spacing:.04em;}
+#title h1 em,.bmark em{letter-spacing:.34em;text-indent:.34em;}
+
+/* ── match callouts ─────────────────────────────────────────
+   ROUND ONE / FIGHT! / K.O. were up to 170px tall and covered the fighters.
+   About half that now, and FINISH HIM uses the same face as the rest. */
+#call.slam span{font-size:clamp(26px,7.5vh,80px);letter-spacing:.05em;}
+#call.warn span{font-family:var(--logo);font-size:clamp(22px,6vh,64px);letter-spacing:.05em;}
+#call.toast span{font-size:clamp(13px,2.6vh,28px);}
+
+/* ── phones and tablets ─────────────────────────────────────
+   No rubber-band scrolling, no double-tap zoom, no text selection when a
+   thumb lingers, and the notch respected. */
+html,body{overscroll-behavior:none;}
+#game{touch-action:manipulation;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;}
+.seg button,.stab,.tbtn,#pause button{touch-action:manipulation;}
+
+/* On touch the meter badges leave the bottom corners, where the stick and the
+   button cluster live, and sit in a row under each health bar instead. */
+body.touch .gauges{
+  position:static;flex-direction:row;gap:6px;margin-top:4px;
+}
+body.touch .fighter-block.p2 .gauges{flex-direction:row-reverse;align-self:flex-end;}
+body.touch .gauge{width:clamp(46px,8vw,66px);height:clamp(20px,3.6vw,28px);}
+/* combos move inward, clear of the summon and overdrive buttons */
+body.touch .combo{top:clamp(92px,26vh,150px);}
+body.touch .combo.p1{left:calc(50% - clamp(120px,24vw,220px));}
+body.touch .combo.p2{right:calc(50% - clamp(120px,24vw,220px));}
+
+/* short landscape screens: the button cluster and stick shrink so the top row never reaches the health bars */
+@media (max-height:480px){
+  .tc-buttons{transform:scale(.74);transform-origin:100% 100%;}
+  .tc-stick{transform:scale(.86);}
+  body.touch .timer{font-size:30px;padding:5px 16px 3px;}
+  body.touch .status{padding-top:8px;}
+  body.touch .fname{font-size:12px;}
+  body.touch .bar{height:15px;}
+}
+@media (max-height:480px) and (pointer:coarse){
+  .mbox{max-height:92vh;}
+  .srow{padding:9px 0;}
+}
+
+@media (prefers-reduced-motion:reduce){
+  .mbox,.rbox,#pause > div,#bye > div,#title .tinner{transform:none;}
+  body.titling .tmenu > .tbtn,.mpane:not([hidden]),.spage:not([hidden]){animation:none;}
+  #pause .prow button,.rrow .tbtn,.rscore,.rstats > div,.pctx{translate:none;}
+  #hud .status{transform:none !important;}
+  .fighter-block.danger .bar{animation:none;box-shadow:0 0 0 1px rgba(230,57,70,.95);}
+  .fighter-block.jolt .bar,.fighter-block.jolt-heavy .bar{animation:none;}
+}

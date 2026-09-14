@@ -128,8 +128,36 @@ export function spawnRing(at: THREE.Vector3, color: number): void {
   }
 }
 
+/* Echo rings that follow a summon's hit a beat later. They used to be
+   setTimeout calls, which run on wall-clock time: pause the match or sit in
+   hit-stop and they fired anyway, and each one captured a cloned vector. They
+   now wait in a fixed pool and count down on the effect clock, which stops
+   whenever the fight does. */
+interface PendingRing { readonly at: THREE.Vector3; color: number; delay: number; live: boolean }
+const pendingRings: PendingRing[] = Array.from({ length: 10 }, () => ({ at: new THREE.Vector3(), color: 0, delay: 0, live: false }));
+
+export function spawnRingLater(at: THREE.Vector3, color: number, delay: number): void {
+  const slot = pendingRings.find((p) => !p.live);
+  if (!slot) {
+    spawnRing(at, color);
+    return;
+  }
+  slot.at.copy(at);
+  slot.color = color;
+  slot.delay = delay;
+  slot.live = true;
+}
+
 export function updateVfx(dt: number): void {
   Flip.update(dt);
+  for (const p of pendingRings) {
+    if (!p.live) continue;
+    p.delay -= dt;
+    if (p.delay <= 0) {
+      p.live = false;
+      spawnRing(p.at, p.color);
+    }
+  }
   for (const a of arcs) {
     if (a.life <= 0) continue;
     a.life -= dt * 4.6;
@@ -300,6 +328,7 @@ export function spark(at: THREE.Vector3, color: number): void {
 }
 
 export function resetVfx(): void {
+  for (const p of pendingRings) p.live = false;
   arcs.length = 0;
   rings.length = 0;
   streaks.length = 0;

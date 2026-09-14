@@ -59,6 +59,12 @@ export function disposeObject(root: Object3D, keep?: Keep): void {
       const list = Array.isArray(n.material) ? n.material : [n.material];
       for (const m of list) disposeMaterial(m, keep, seen);
     }
+    // an instanced mesh owns its instance matrix and colour buffers
+    const instanced = node as Object3D & { isInstancedMesh?: boolean; dispose?: () => void };
+    if (instanced.isInstancedMesh && !seen.has(instanced)) {
+      seen.add(instanced);
+      instanced.dispose?.();
+    }
     // a skinned mesh's bone matrices live in a texture of their own
     if (n.skeleton && !seen.has(n.skeleton)) {
       seen.add(n.skeleton);

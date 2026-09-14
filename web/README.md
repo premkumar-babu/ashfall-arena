@@ -20,6 +20,100 @@ npm run preview    # serve dist/ on :4173
 `public/assets` is a directory junction to `../assets`, so both builds share one
 copy of the models, animation library, textures and VFX sheets.
 
+## Asset pipeline
+
+```bash
+npm run assets              # everything: textures, props, models  (~3 min)
+npm run assets -- textures  # or one stage: textures | props | models
+```
+
+`scripts/build-assets.mjs` never touches the source art. It writes optimised
+copies to `../assets/opt/` plus `opt/manifest.json`, and the game reads that
+manifest at boot (`src/assets/pipeline.ts`):
+
+| Stage    | What happens                                                                  |
+| -------- | ----------------------------------------------------------------------------- |
+| models   | dedup → prune (bones kept) → resample → weld → textures to KTX2 → Draco       |
+| textures | surface JPEGs and VFX flipbooks → KTX2: ETC1S for colour/data, UASTC+Zstd for normals; power-of-two, mipmapped, pre-flipped |
+| props    | rocks, stone lanterns and grass generated in the script, up to 3 LODs each, Draco, one GLB |
+
+At run time every loader shares one `LoadingManager`. `GLTFLoader` is wired to
+`DRACOLoader`, `KTX2Loader` and the meshopt decoder. The Draco and Basis
+WebAssembly decoders need no setup: both loaders locate them with
+`new URL(…, import.meta.url)`, which Vite serves in dev and emits into
+`dist/assets` on build, so they always match the installed three.js. Game code still asks for source paths
+(`assets/models/x1.glb`, `textures/slate_nor.jpg`); the pipeline swaps in the
+optimised file when the manifest has one and the device can transcode it, and
+falls back to the source file otherwise. A checkout that never ran the build
+loads exactly what it did before.
+
+Loads are cached per path and reference-counted: `Assets.release(path)` frees
+the GPU resources behind the last reference (the animation library's rig
+meshes are released as soon as its clips are extracted), and `Assets.dispose()`
+frees everything still cached and terminates the decoder workers on teardown.
+
+Result on the classic cast: models + textures 17.8 MB → 7.2 MB on disk, and
+live texture memory from ~206 MB to a few tens of MB — KTX2 stays compressed on
+the GPU (BC7 / ASTC / ETC2), where a PNG decodes to full RGBA.
+
+## Loading
+
+The curtain (`src/ui/boot-curtain.ts`) reads the pipeline's job list: every
+file is registered up front with its real size from the manifest, so the bar
+moves in bytes, and four stages (arena, surfaces, fighters, motion) light up as
+they land. It lifts once the arena, surfaces and cast are in, after 12 s
+regardless, or on a click. Whatever is still arriving afterwards shows in a
+small streaming pill. The scene renders underneath from the first frame and
+every asset has a stand-in, so the game is playable throughout.
+
+## World
+
+- `world/landscape.ts`: a polar heightfield from the courtyard walls to the
+  horizon, with a moat, an open lake behind the duel, banks and hills, and
+  islands under the far pavilions and the tower. It is vertex-coloured by height
+  and slope. An instanced retaining wall and coping run round the floor.
+  Rocks, lanterns and wind-blown grass (TSL vertex sway) are scattered from the
+  props GLB with a fixed seed.
+- `world/instanced-lod.ts`: LOD for instanced scenery. One `InstancedMesh`
+  per level per part; each instance is bucketed by on-screen size (radius ÷
+  distance, scaled by the lens, so the fight camera's zoom is accounted for),
+  with hysteresis, only when the camera has moved.
+- `world/instancing.ts`: `collapseInstances(root)` folds meshes sharing a
+  geometry and material into `InstancedMesh` draws after a group is built. The
+  arena uses it for balusters, columns, lantern posts, blossom, palm fronds and
+  the tower; clouds are one instanced draw updated as they drift.
+
+## Audio and game feel
+
+Everything is synthesised with the Web Audio API; there are no audio files.
+
+```
+voices → stereo pan → sfx ──┐
+             └→ courtyard reverb
+score ─────────────→ music ─┼→ master (volume, mute) → limiter → out
+3D beds ───────────→ amb ───┘
+```
+
+- `audio/sfx.ts`: the engine and every effect. Master, music, effects and
+  ambience each have their own gain (all four are sliders in SETTINGS → AUDIO);
+  mute is one ramp on master. Each one-shot gets a little random pitch and
+  level so repeats never machine-gun, a voice cap drops low-priority sounds
+  under load, and combat sounds are panned by world X relative to the camera.
+- `audio/music.ts`: a procedural score in D minor on a lookahead scheduler.
+  Pad, bass, drums and arpeggio layers fade with intensity (title 0, select 1,
+  fight 2, clutch 3 = final round or a human low on health); stingers for
+  round start, KO, victory and defeat; ducking under impacts; a low-pass
+  "underwater" sweep on KO.
+- `audio/ambience.ts`: brazier crackle and lake water on 3D `PannerNode`s with
+  the listener riding the camera, over an unpositioned wind bed.
+- `fx/juice.ts`: every important event calls `impact(kind)`, one row per kind
+  of hit-stop, trauma (shake = trauma²), lens punch, aberration and exposure
+  kick, and music duck, plus a jolt on the struck health bar. `knockout()`
+  adds slow motion through the loop's time scale, desaturation, a camera lean
+  toward the fallen fighter and a muffled score. Rounds open with the lens
+  easing in from wide, and the last five seconds tick. Shake and lens motion
+  follow the SCREEN SHAKE setting and `prefers-reduced-motion`.
+
 ## URL flags
 
 | Flag            | Effect                                                   |
@@ -28,36 +122,76 @@ copy of the models, animation library, textures and VFX sheets.
 | `?stats`        | Show the stats-gl overlay (FPS, CPU and GPU frame time)  |
 | `?cast=compact` | Pick a cast: `classic` (default), `compact`, `authored`  |
 
-In game: **H** toggles the dev panel and the performance overlay together,
-**B** hit/hurtboxes, **P** post-processing, **T** / **Shift+T** stage theme.
+In game: **B** hit/hurtboxes, **P** post-processing, **T** / **Shift+T** stage theme.
+With `?dev` or `?stats` in the URL, **H** also toggles the dev panel and the
+CPU/GPU overlay; without it no timing overlay can appear.
 
-## Layout
+## Project structure
+
+Dependencies point downward: `config` and `core` import nothing from the
+game; `game` never imports `ui` screens except through small hooks (announcer,
+HUD handles, menu focus).
 
 ```
-src/
-  main.ts            boot order, one Disposer for teardown, HMR dispose
-  debug.ts           window.__ASH / window.__ash console handles
-  core/              engine-agnostic plumbing
-    renderer.ts        WebGPURenderer + backend detection
-    loop.ts            FixedStepLoop: 120 Hz simulation, per-frame presentation
-    resize.ts          ResizeObserver + DPR watcher → renderer, camera
-    disposal.ts        Disposer, disposeObject / disposeMaterial
-    stats.ts           stats-gl wrapper
-    math.ts, platform.ts
-  config/            data only: constants, roster, themes
-  render/            stage (scene, camera, lights), post (TSL), theme, materials, textures
-  world/             arena build, ambient animation, surface textures
-  game/              fighter & assist rigs, state machine, physics, collision,
-                     meter, assists, match / rounds / results, bot, pose, game.ts
-  anim/              clip library + retargeting, bone driver
-  assets/            texture loader, model loader, cast dressing
-  camera/            camera rig and the PLAY tween
-  fx/                instanced-sprite particles, flipbooks, VFX pools, strike lights
-  input/             key bindings + remapping, keyboard/gamepad → Intent
-  audio/             synthesised SFX, music
-  ui/                DOM handles, HUD, select screen, portraits, front end, boot curtain
-  styles/game.css
+web/
+  index.html            every screen's markup: boot, title, select, HUD, pause, modal, results
+  vite.config.ts        base './', single three copy
+  scripts/
+    build-assets.mjs    offline pipeline → ../assets/opt (npm run assets)
+  src/
+    main.ts             boot order, one Disposer for teardown, HMR dispose
+    debug.ts            window.__ASH / window.__ash inspection handles
+    config/             data only
+      constants.ts        enums, physics, meter, framing
+      roster.ts           fighters and summons (balanced to one damage budget)
+      themes.ts           the seven stages
+      controls.ts         every feel number for input and movement
+      quality.ts          LOW / MEDIUM / HIGH presets, AUTO device guess
+    core/               engine plumbing, no game knowledge
+      renderer.ts         WebGPURenderer + WebGL2 fallback
+      loop.ts             120 Hz fixed step, per-frame presentation, time scale
+      frame-governor.ts   demand rendering + adaptive quality
+      resize.ts, disposal.ts, stats.ts, spring.ts, math.ts, platform.ts
+    assets/             pipeline.ts (manifest, Draco, KTX2, ref-counted cache),
+                        loader.ts, texture-loader.ts, models.ts (casts, merge, dressing)
+    render/             stage (scene, camera, lights), post (TSL chain), theme, materials, textures
+    world/              arena, landscape, instancing (instances + static merge),
+                        instanced-lod, ambience, surfaces
+    physics/            Rapier port, world, character controller, colliders, props, debris
+    game/               game.ts (simulate / present), match, fsm, movement, collision,
+                        meter, assist, bot, pose, rigs, fighter, state
+    anim/               clip library + retargeting, bone driver
+    camera/             camera-rig.ts: title drift, select portrait, fight springs, PLAY tween
+    fx/                 juice.ts (impact feel), particles, flipbook, vfx pools, ribbon, strike lights
+    audio/              sfx.ts (engine + effects), music.ts (procedural score), ambience.ts (3D beds)
+    input/              bindings, controller, buffer, feedback (haptics), devices/*
+    ui/                 front-end (menus, settings), menu-nav, hud, select, portraits,
+                        announcer, boot-curtain, settings, dom
+    styles/             game.css (base, HUD), screens.css (overlays, transitions, mobile), touch.css
+assets/                 source art; opt/ is generated and committed
 ```
+
+## Performance and quality
+
+| Preset | Render scale | AO | AA | DOF | Shadow map | Scenery LOD | Grass |
+| ------ | ------------ | -- | -- | --- | ---------- | ----------- | ----- |
+| LOW    | 0.7          | —  | FXAA | — | 1024       | ×2.2 coarser | off  |
+| MEDIUM | 1.0          | 8 samples | SMAA | — | 2048 | ×1.4 | on |
+| HIGH   | 2.0          | 16 samples | SMAA | on | 2048 | ×1 | on |
+
+AUTO (the default) picks a preset from the device (touch, memory, cores,
+backend) and `core/frame-governor.ts` steps it down if frames stay above
+~21 ms for four seconds; picking a preset turns that off. The governor also
+redraws a paused match at 10 fps instead of 60.
+
+Draw calls, fight on the default cast: 212 → 105; triangles 472k → 51k.
+- KayKit characters' 7–9 skinned parts merge into one skinned mesh at load
+  (same skeleton, bind pose and material are checked first).
+- `collapseInstances` folds repeated scenery into `InstancedMesh`;
+  `mergeStatic` bakes one-off pieces sharing a material into one mesh per
+  group (pavilions 9 → 5 draws, statues 10 → 6), keeping per-group culling.
+- Effects are pooled (particles, flipbooks, arcs, rings, streaks, sparks,
+  debris) and hidden when idle; summon echo rings run on the effect clock.
 
 ## Frame model
 

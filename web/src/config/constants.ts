@@ -46,9 +46,12 @@ export const BOT_STATE = {
 export type BotState = (typeof BOT_STATE)[keyof typeof BOT_STATE];
 
 /* ── camera framing ───────────────────────────────────────────────────── */
+/* Fight camera distance. Pulled back from zBase 7.5 / zMin 7.6 / yBase 2.42:
+   with the shorter KayKit cast the fight read too close, the fighters
+   crowding the frame and the stage lost behind them. */
 export const RIG = {
-  zMin: 7.6, zMax: 19.5, zBase: 7.5, zPerGap: 0.94,
-  yBase: 2.42, yPerGap: 0.085, xPull: 0.88,
+  zMin: 9.8, zMax: 22, zBase: 9.6, zPerGap: 0.94,
+  yBase: 2.75, yPerGap: 0.085, xPull: 0.88,
   lambdaX: 4.2, lambdaZ: 3.0, lambdaY: 3.4, lambdaLook: 5.0,
 } as const;
 
@@ -61,9 +64,10 @@ export const METER = {
 } as const;
 
 /* ── combat feel ──────────────────────────────────────────────────────────
-   Flat 60 ms on every clean hit; a guard gets less. */
-export const HITSTOP = { min: 0.060, max: 0.060, perDamage: 0, blocked: 0.035 } as const;
-export const SHAKE = { amount: 0.34, roll: 0.022, lambda: 15 } as const;
+   Hit-stop, trauma and lens kicks per kind of impact live in fx/juice.ts.
+   This is only the shake's size: world units of travel and radians of roll
+   at full trauma. */
+export const SHAKE = { amount: 0.34, roll: 0.022 } as const;
 /* Blown-out white after the hit-stop, counted in 120 Hz simulation steps: four
    steps is the two 60 Hz frames it was tuned as. */
 export const FLASH_FRAMES = 4;
