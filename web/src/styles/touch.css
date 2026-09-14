@@ -1,0 +1,143 @@
+/* ── on-screen touch controls ─────────────────────────────────────────── */
+
+.tc-root {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* the left 45% of the screen is the stick's catch area */
+.tc-zone {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 45%;
+  height: 72%;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.tc-stick {
+  position: absolute;
+  left: calc(env(safe-area-inset-left, 0px) + 96px);
+  top: calc(100% - 120px - env(safe-area-inset-bottom, 0px));
+  width: 124px;
+  height: 124px;
+  margin: -62px 0 0 -62px;
+  border-radius: 50%;
+  border: 2px solid rgba(237, 227, 210, 0.28);
+  background: radial-gradient(circle, rgba(11, 8, 9, 0.40) 0%, rgba(11, 8, 9, 0.12) 70%);
+  opacity: 0.45;
+  transition: opacity 0.12s ease;
+}
+
+.tc-stick.on {
+  opacity: 1;
+  transition: none;
+}
+
+.tc-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 54px;
+  height: 54px;
+  margin: -27px 0 0 -27px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, rgba(255, 244, 228, 0.85), rgba(237, 227, 210, 0.45));
+  box-shadow: 0 0 18px rgba(226, 97, 43, 0.45);
+}
+
+.tc-buttons {
+  position: absolute;
+  right: calc(env(safe-area-inset-right, 0px) + 16px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+  width: 232px;
+  height: 232px;
+  pointer-events: none;
+}
+
+.tc-btn {
+  position: absolute;
+  width: 76px;
+  height: 76px;
+  padding: 0;
+  border-radius: 50%;
+  pointer-events: auto;
+  touch-action: none;
+  font: 700 12px/1 'Barlow Condensed', 'Rajdhani', system-ui, sans-serif;
+  letter-spacing: 0.1em;
+  color: var(--bone, #ede3d2);
+  background: rgba(11, 8, 9, 0.46);
+  border: 2px solid rgba(237, 227, 210, 0.32);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  transition: transform 0.06s ease, background-color 0.06s ease;
+}
+
+.tc-btn.down {
+  transform: scale(0.92);
+  background: rgba(226, 97, 43, 0.58);
+  border-color: var(--ember-hot, #ffb454);
+  transition: none;
+}
+
+/* face diamond */
+.tc-jump  { left: 78px;  top: 0; }
+.tc-punch { left: 0;     top: 78px; }
+.tc-kick  { left: 156px; top: 78px; border-color: rgba(255, 180, 84, 0.5); }
+.tc-dash  { left: 78px;  top: 156px; }
+
+/* summon and overdrive, smaller, above the diamond */
+.tc-small { width: 58px; height: 58px; font-size: 11px; top: -74px; }
+.tc-assist { left: 14px; border-color: rgba(91, 200, 216, 0.55); }
+.tc-power  { left: 160px; border-color: rgba(240, 194, 75, 0.6); }
+
+.tc-pause {
+  position: absolute;
+  left: 50%;
+  top: calc(env(safe-area-inset-top, 0px) + 84px);
+  width: 44px;
+  height: 44px;
+  margin-left: -22px;
+  border-radius: 50%;
+  pointer-events: auto;
+  touch-action: manipulation;
+  font: 700 13px/1 system-ui, sans-serif;
+  color: var(--bone, #ede3d2);
+  background: rgba(11, 8, 9, 0.5);
+  border: 1px solid rgba(237, 227, 210, 0.3);
+}
+
+.tc-rotate {
+  display: none;
+}
+
+/* the fight is framed for landscape; say so rather than cramming it */
+@media (orientation: portrait) {
+  body.touch .tc-rotate {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+    justify-content: center;
+    z-index: 31;
+    pointer-events: none;
+    font: 600 13px/1.2 'Barlow Condensed', system-ui, sans-serif;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--bone, #ede3d2);
+    text-shadow: 0 1px 6px #000;
+  }
+}
+
+/* keyboard legend means nothing on a phone */
+body.touch #keys {
+  display: none;
+}

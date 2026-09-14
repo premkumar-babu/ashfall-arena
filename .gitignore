@@ -1,0 +1,14 @@
+# dependencies and build output
+node_modules/
+web/dist/
+dist/
+
+# web/public/assets is a directory junction to ../assets; tracking it would
+# commit every model, texture and effect sheet a second time
+web/public/assets
+
+# local tooling and OS noise
+.claude/
+*.log
+.DS_Store
+Thumbs.db

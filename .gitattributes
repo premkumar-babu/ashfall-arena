@@ -1,0 +1,10 @@
+# Character models go through Git LFS. The authored cast includes a 116 MB
+# FBX, over GitHub's 100 MB per-file limit for ordinary git objects.
+*.fbx filter=lfs diff=lfs merge=lfs -text
+
+# keep text line endings consistent between Windows and everyone else
+*.ts text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.json text eol=lf
+*.md text eol=lf

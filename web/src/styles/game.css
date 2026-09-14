@@ -1,0 +1,1822 @@
+:root{
+  --void:#0B0809;
+  --ash:#15100F;
+  --char:#221A18;
+  --smoke:#3A2E2A;
+  --bone:#EDE3D2;
+  --dust:#9A8A7C;
+  --ember:#E2612B;
+  --ember-hot:#FFB454;
+  --spectre:#5BC8D8;
+  --blood:#7E1B22;
+  --strike:#FF3B24;
+  --gold:#F0C24B;
+
+  --logo:"Cinzel Decorative","Cinzel","Iowan Old Style",Georgia,serif;
+  --display:"Cinzel","Iowan Old Style",Georgia,serif;
+  --ui:"Barlow Condensed","Oswald","Arial Narrow",sans-serif;
+  --mono:"JetBrains Mono","SFMono-Regular",Consolas,monospace;
+  /* Numerals and callouts. Cinzel is the game's name and looks it, but it
+     is a book face: at 44px on a clock it reads as a chapter heading. Teko
+     is condensed, flat-sided and tabular, which is what every readable
+     fighting-game HUD has used since the arcades. */
+  --num:"Teko","Barlow Condensed","Oswald",sans-serif;
+  /* Arcade furniture. Orbitron is the wide, squared face for anything that
+     should read as a machine talking — menu buttons, fighter plates. Rajdhani
+     is its narrower companion for the small HUD labels, where Orbitron’s width
+     would blow the line out. */
+  --tech:"Orbitron","Rajdhani","Barlow Condensed",sans-serif;
+  --hud:"Rajdhani","Barlow Condensed","Oswald",sans-serif;
+  /* Impact calls only: a single condensed weight with no lowercase, which
+     is what "FINISH HIM" wants and what Orbitron is too wide to be. */
+  --impact:"Bebas Neue","Teko","Oswald",sans-serif;
+}
+
+body{
+  background:var(--void);
+  color:var(--bone);
+  font-family:var(--ui);
+  overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ── LAYERING ───────────────────────────────────────────────
+   #game is the positioning context. The WebGL canvas sits at
+   the bottom; every DOM layer above it is absolutely placed and
+   transparent to the mouse unless a control opts back in.      */
+#game{position:fixed;inset:0;overflow:hidden;background:var(--void);}
+#stage{position:absolute;inset:0;z-index:0;}
+#stage canvas{display:block;width:100%;height:100%;}
+
+/* the shader pass owns the vignette; the CSS one only stands in when
+   post-processing is off or unavailable */
+/* Scrims. The stage is a bright daylit courtyard, so bone-white HUD text
+   sat on pale sky was close to unreadable — these give every overlay a
+   dark ground to sit on without dimming the fight itself. */
+#veil{
+  position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:
+    linear-gradient(to bottom, rgba(6,5,8,.80) 0, rgba(6,5,8,.42) 62px, rgba(0,0,0,0) 140px),
+    linear-gradient(to top,    rgba(6,5,8,.62) 0, rgba(0,0,0,0) 150px),
+    linear-gradient(to bottom, rgba(226,97,43,.07), rgba(0,0,0,0) 26%);
+}
+body.nopost #veil{
+  background:
+    linear-gradient(to bottom, rgba(6,5,8,.80) 0, rgba(6,5,8,.42) 62px, rgba(0,0,0,0) 140px),
+    linear-gradient(to top,    rgba(6,5,8,.62) 0, rgba(0,0,0,0) 150px),
+    radial-gradient(120% 90% at 50% 42%, rgba(0,0,0,0) 38%, rgba(6,4,4,.72) 100%),
+    linear-gradient(to bottom, rgba(226,97,43,.06), rgba(0,0,0,0) 26%);
+}
+
+#hud{position:absolute;inset:0;z-index:2;pointer-events:none;}
+
+/* ── boot curtain ───────────────────────────────────────────
+   Same glass language as everything else, but opaque: this is the first
+   thing anyone sees and it should not show a half-built scene through
+   itself. */
+#boot{
+  position:absolute;inset:0;z-index:10;display:grid;place-items:center;
+  background:radial-gradient(120% 100% at 50% 42%,#15151F 0%,#07070B 70%);
+  transition:opacity .5s ease,visibility .5s;
+}
+body.booted #boot{opacity:0;visibility:hidden;pointer-events:none;}
+.binner{display:grid;justify-items:center;gap:22px;width:min(420px,80vw);}
+.bmark{
+  font-family:var(--logo);font-weight:900;
+  font-size:clamp(24px,5vw,40px);letter-spacing:.06em;line-height:1;
+  text-align:center;
+  background:linear-gradient(178deg,#FFF6E6 12%,#FFD36B 52%,#FFAA00 100%);
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+  filter:drop-shadow(0 0 26px rgba(255,170,0,.35));
+}
+.bmark em{
+  display:block;font-style:normal;font-weight:700;
+  font-size:.42em;letter-spacing:.42em;margin-top:.22em;text-indent:.42em;
+}
+.btrack{
+  position:relative;width:100%;height:3px;border-radius:2px;overflow:hidden;
+  background:rgba(255,255,255,.08);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.05);
+}
+.btrack i{
+  position:absolute;inset:0;transform-origin:left center;transform:scaleX(0);
+  background:linear-gradient(90deg,#FFAA00,#FFD36B);
+  box-shadow:0 0 14px rgba(255,170,0,.8);
+  transition:transform .3s cubic-bezier(.3,.8,.3,1);
+}
+.brow{
+  display:flex;justify-content:space-between;align-items:baseline;width:100%;
+  font-family:var(--mono);font-size:9px;letter-spacing:.22em;color:#7A7A90;
+}
+#bpct{color:#FFAA00;font-variant-numeric:tabular-nums;}
+#bwhat{text-transform:uppercase;letter-spacing:.16em;}
+
+/* ── title screen ───────────────────────────────────────────
+
+   The overlay is always in the DOM; two body classes decide how much of
+   it shows. `attract` is the logo and the prompt, `titling` adds the
+   menu. Neither is present once PLAY is pressed, which is what lets the
+   select screen and the HUD come back untouched. */
+#title{
+  position:absolute;inset:0;z-index:6;display:none;
+  place-items:center;text-align:center;
+  background:
+    radial-gradient(120% 100% at 50% 8%, rgba(226,97,43,.15), rgba(0,0,0,0) 55%),
+    radial-gradient(140% 110% at 50% 50%, rgba(6,5,8,.62), rgba(6,5,8,.94));
+  backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);
+}
+body.attract #title,body.titling #title{display:grid;}
+.tinner{display:grid;justify-items:center;gap:0;padding:0 20px;}
+
+.tmark{position:relative;margin-bottom:18px;}
+/* the burning copy sits behind the solid one and never takes a pointer */
+.tglow{
+  position:absolute;inset:0;display:grid;place-items:center;
+  font-family:var(--logo);font-weight:900;
+  font-size:clamp(34px,7.6vw,88px);letter-spacing:.06em;
+  color:transparent;pointer-events:none;
+  text-shadow:0 0 26px rgba(226,97,43,.85),0 0 70px rgba(226,97,43,.45);
+  animation:tflicker 4.2s ease-in-out infinite;
+}
+#title h1{
+  margin:0;font-family:var(--logo);font-weight:900;
+  font-size:clamp(34px,7.6vw,88px);line-height:1;letter-spacing:.06em;
+  color:var(--bone);
+  background:linear-gradient(178deg,#FFF6E6 12%,#F0C24B 48%,#E2612B 78%,#9A3A18 100%);
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;
+  filter:drop-shadow(0 4px 0 rgba(0,0,0,.55)) drop-shadow(0 0 34px rgba(226,97,43,.40));
+}
+#title h1 em{
+  display:block;font-style:normal;font-weight:700;
+  font-size:.46em;letter-spacing:.42em;margin-top:.16em;text-indent:.42em;
+}
+.trule{
+  display:flex;align-items:center;justify-content:center;gap:14px;
+  margin-top:16px;font-family:var(--mono);font-size:9.5px;
+  letter-spacing:.42em;color:#C4AE9C;text-indent:.42em;
+  text-shadow:0 2px 10px rgba(0,0,0,.9);
+}
+.trule i{display:block;width:clamp(26px,7vw,84px);height:1px;background:linear-gradient(90deg,rgba(0,0,0,0),var(--smoke));}
+.trule i:last-child{transform:scaleX(-1);}
+
+.tprompt{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.30em;color:#D8C6B4;
+  margin-top:8px;text-shadow:0 2px 10px rgba(0,0,0,.9);animation:tpulse 1.9s ease-in-out infinite;
+}
+.tprompt kbd{
+  font:inherit;border:1px solid var(--smoke);border-bottom-width:2px;border-radius:3px;
+  padding:2px 7px;color:var(--bone);background:rgba(11,8,9,.7);margin:0 2px;
+}
+body.titling .tprompt{display:none;}
+
+.tmenu{display:none;grid-auto-flow:row;gap:9px;margin-top:22px;min-width:min(300px,76vw);}
+body.titling .tmenu{display:grid;}
+.tbtn{
+  pointer-events:auto;cursor:pointer;position:relative;overflow:hidden;isolation:isolate;
+  font-family:var(--ui);font-weight:700;font-size:13px;letter-spacing:.26em;
+  padding:13px 30px;border:1px solid var(--smoke);border-radius:2px;
+  color:var(--bone);background:rgba(11,8,9,.78);
+  transition:color .16s,border-color .16s,background .16s,transform .16s,letter-spacing .16s;
+}
+/* the wipe is a pseudo-element so the label is never repainted mid-hover */
+.tbtn::before{
+  content:"";position:absolute;inset:0;transform:scaleX(0);transform-origin:left center;
+  background:linear-gradient(90deg,var(--ember),var(--ember-hot));
+  transition:transform .22s cubic-bezier(.2,.7,.3,1);z-index:-1;
+}
+.tbtn:hover,.tbtn:focus-visible{
+  color:#140806;border-color:var(--ember-hot);outline:none;
+  transform:translateY(-1px);letter-spacing:.30em;
+}
+.tbtn:hover::before,.tbtn:focus-visible::before{transform:scaleX(1);}
+.tbtn.primary{border-color:var(--ember);box-shadow:0 0 0 1px rgba(226,97,43,.18),0 10px 34px rgba(226,97,43,.13);}
+.tbtn.ghost{font-size:11px;letter-spacing:.22em;padding:10px 30px;color:var(--dust);}
+.tbtn.ghost:hover::before{background:linear-gradient(90deg,var(--blood),#B0262F);}
+.tbtn.ghost:hover{color:#fff;border-color:var(--blood);}
+
+.tfoot{
+  margin-top:26px;font-family:var(--mono);font-size:8.5px;
+  letter-spacing:.26em;color:#9A8578;text-shadow:0 2px 8px rgba(0,0,0,.9);
+}
+
+@keyframes tpulse{0%,100%{opacity:.34;}50%{opacity:1;}}
+@keyframes tflicker{
+  0%,100%{opacity:.85;} 42%{opacity:.62;} 47%{opacity:.95;}
+  52%{opacity:.58;} 58%{opacity:.88;} 74%{opacity:.70;}
+}
+
+/* ── modal: controls / settings ─────────────────────────────── */
+#modal{
+  position:absolute;inset:0;z-index:8;display:none;place-items:center;
+  background:rgba(6,5,8,.78);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+}
+body.modal #modal{display:grid;}
+.mbox{
+  pointer-events:auto;width:min(680px,92vw);max-height:86vh;overflow:auto;
+  background:linear-gradient(180deg,rgba(34,26,24,.97),rgba(11,8,9,.97));
+  border:1px solid var(--smoke);border-radius:3px;
+  box-shadow:0 30px 90px rgba(0,0,0,.7),0 0 0 1px rgba(226,97,43,.10);
+  text-align:left;
+}
+.mbox header{
+  display:flex;align-items:center;justify-content:space-between;gap:14px;
+  padding:16px 20px;border-bottom:1px solid var(--smoke);
+  position:sticky;top:0;background:rgba(17,12,12,.98);
+}
+.mbox h3{
+  margin:0;font-family:var(--display);font-weight:900;
+  font-size:16px;letter-spacing:.22em;color:var(--bone);
+}
+#mclose{
+  cursor:pointer;font-family:var(--mono);font-size:9px;letter-spacing:.18em;
+  padding:6px 11px;border:1px solid var(--smoke);border-radius:2px;
+  color:var(--dust);background:transparent;transition:color .16s,border-color .16s;
+}
+#mclose:hover{color:var(--bone);border-color:var(--bone);}
+.mpane{padding:18px 20px 20px;}
+
+.ctbl{width:100%;border-collapse:collapse;font-family:var(--ui);font-size:12.5px;}
+.ctbl th{
+  text-align:left;padding:0 10px 9px;font-weight:700;font-size:9px;
+  letter-spacing:.22em;color:var(--dust);border-bottom:1px solid var(--smoke);
+}
+.ctbl td{padding:7px 10px;color:var(--bone);border-bottom:1px solid rgba(58,46,42,.42);}
+.ctbl td:first-child{color:var(--dust);letter-spacing:.06em;width:23%;}
+.ctbl kbd{
+  display:inline-block;font-family:var(--mono);font-size:10px;
+  min-width:20px;text-align:center;padding:2px 6px;margin-right:4px;
+  border:1px solid var(--smoke);border-bottom-width:2px;border-radius:3px;
+  color:var(--bone);background:rgba(11,8,9,.8);
+}
+.mnote{
+  margin:16px 0 0;font-family:var(--ui);font-size:12px;line-height:1.65;color:var(--dust);
+}
+.mnote kbd{font-family:var(--mono);font-size:10px;color:var(--bone);}
+.mnote b{color:var(--ember-hot);font-weight:700;}
+
+.srow{
+  display:flex;align-items:center;justify-content:space-between;gap:18px;
+  padding:13px 0;border-bottom:1px solid rgba(58,46,42,.42);
+}
+.srow:last-of-type{border-bottom:0;}
+.srow b{
+  display:block;font-family:var(--ui);font-weight:700;font-size:12px;
+  letter-spacing:.18em;color:var(--bone);
+}
+.srow small{
+  display:block;margin-top:3px;font-family:var(--ui);font-size:11.5px;color:var(--dust);
+}
+/* switch: the track is the button, the knob is the <i> */
+.sw{
+  flex:0 0 auto;cursor:pointer;display:flex;align-items:center;gap:9px;
+  padding:5px 11px 5px 5px;border:1px solid var(--smoke);border-radius:20px;
+  background:rgba(11,8,9,.8);transition:border-color .18s,background .18s;
+}
+.sw i{
+  display:block;width:30px;height:16px;border-radius:10px;position:relative;
+  background:var(--smoke);transition:background .18s;
+}
+.sw i::after{
+  content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;
+  background:var(--dust);transition:transform .18s,background .18s;
+}
+.sw span{
+  font-family:var(--mono);font-size:9px;letter-spacing:.16em;color:var(--dust);
+  min-width:22px;transition:color .18s;
+}
+.sw[aria-pressed="true"]{border-color:var(--ember);}
+.sw[aria-pressed="true"] i{background:rgba(226,97,43,.40);}
+.sw[aria-pressed="true"] i::after{transform:translateX(14px);background:var(--ember-hot);}
+.sw[aria-pressed="true"] span{color:var(--ember-hot);}
+.sw:hover{border-color:var(--bone);}
+
+.seg{display:flex;border:1px solid var(--smoke);border-radius:2px;overflow:hidden;}
+.seg button{
+  cursor:pointer;font-family:var(--mono);font-size:9px;letter-spacing:.16em;
+  padding:8px 13px;border:0;border-right:1px solid var(--smoke);
+  color:var(--dust);background:transparent;transition:color .16s,background .16s;
+}
+.seg button:last-child{border-right:0;}
+.seg button:hover{color:var(--bone);}
+.seg button.on{color:#140806;background:var(--ember);}
+
+/* the pause menu grew from two buttons to six */
+#pause .prow{flex-wrap:wrap;max-width:min(560px,90vw);}
+
+@media (max-width:640px){
+  .ctbl th:nth-child(4),.ctbl td:nth-child(4){display:none;}
+  .srow{flex-direction:column;align-items:flex-start;gap:10px;}
+}
+
+/* ── pause ──────────────────────────────────────────────── */
+#pause{
+  position:absolute;inset:0;z-index:5;display:none;
+  place-items:center;text-align:center;
+  background:radial-gradient(120% 90% at 50% 50%,rgba(6,5,8,.55),rgba(6,5,8,.88));
+  backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);
+}
+body.paused #pause{display:grid;}
+#pause h2{
+  margin:0 0 4px;font-family:var(--display);font-weight:900;
+  font-size:clamp(30px,5vw,52px);letter-spacing:.16em;color:var(--bone);
+  text-shadow:0 0 40px rgba(226,97,43,.5),0 6px 0 rgba(0,0,0,.7);
+}
+#pause .phint{
+  font-family:var(--mono);font-size:10px;letter-spacing:.26em;color:var(--dust);
+  margin-bottom:22px;
+}
+#pause .prow{display:flex;gap:12px;justify-content:center;}
+#pause button{
+  pointer-events:auto;cursor:pointer;
+  font-family:var(--ui);font-weight:700;font-size:12px;letter-spacing:.24em;
+  padding:12px 30px;border:1px solid var(--smoke);
+  color:var(--bone);background:rgba(11,8,9,.85);
+  transition:background .18s,color .18s,border-color .18s;
+}
+#pause button:hover{background:var(--bone);color:#0b0809;border-color:var(--bone);}
+#pause button.quit:hover{background:var(--blood);color:#fff;border-color:var(--blood);}
+#select{position:absolute;inset:0;z-index:3;pointer-events:none;}
+#select button{pointer-events:auto;}          /* only controls take the mouse */
+
+body.dev #rig{display:block;}
+body.selecting #hud .status,
+body.selecting #rig,
+body.selecting #keys{opacity:0;visibility:hidden;}
+/* the title screen owns the whole frame; nothing from the match shows under it */
+body.attract #hud,body.titling #hud{opacity:0;visibility:hidden;}
+body:not(.selecting) #select{opacity:0;visibility:hidden;}
+#hud .status,#rig,#keys,#select{transition:opacity .28s ease,visibility .28s;}
+
+/* ── top: fighter status ────────────────────────────────── */
+.status{
+  position:absolute;top:0;left:0;right:0;
+  display:grid;grid-template-columns:1fr auto 1fr;
+  align-items:start;gap:22px;
+  padding:20px 26px 0;
+}
+
+.fighter-block{display:flex;flex-direction:column;gap:6px;min-width:0;}
+.fighter-block.p2{align-items:flex-end;}
+
+.nameplate{display:flex;align-items:baseline;gap:10px;}
+.fighter-block.p2 .nameplate{flex-direction:row-reverse;}
+.tag{font-family:var(--mono);font-size:10px;letter-spacing:.18em;color:var(--dust);padding-top:2px;}
+.fname{
+  font-family:var(--display);font-weight:600;font-size:19px;
+  letter-spacing:.05em;line-height:1;color:var(--acc,var(--bone));
+}
+
+/* ── angled metallic health bar ───────────────────────────
+   Two loss layers: .hp snaps down fast in red, .chip trails it
+   in amber so the chunk just taken stays readable for a beat. */
+.bar{
+  position:relative;height:23px;width:100%;
+  transform:skewX(-15deg);
+  background:linear-gradient(180deg,#050303 0%,#0d0a09 44%,#171211 52%,#050303 100%);
+  border:1px solid #4c3d36;
+  box-shadow:
+    inset 0 1px 0 rgba(237,227,210,.20),
+    inset 0 -2px 3px rgba(0,0,0,.95),
+    0 0 0 1px rgba(0,0,0,.85),
+    0 3px 12px rgba(0,0,0,.7);
+  overflow:hidden;
+}
+.chip,.hp{position:absolute;inset:0;transform-origin:left center;}
+.p2 .chip,.p2 .hp{transform-origin:right center;}
+
+.hp{
+  background:linear-gradient(180deg,#FF9478 0%,#FF3B24 44%,#C21D0D 62%,#7A1208 100%);
+  transition:transform .15s cubic-bezier(.2,.85,.25,1);
+}
+.chip{
+  background:linear-gradient(180deg,#FFF0BC 0%,#F0C24B 46%,#B98A17 64%,#6E4E08 100%);
+  transition:transform .62s cubic-bezier(.25,.7,.2,1) .24s;
+}
+
+/* segment ticks, then a brushed-metal specular over everything */
+.bar::after{
+  content:"";position:absolute;inset:0;z-index:2;
+  background:repeating-linear-gradient(90deg,rgba(0,0,0,.30) 0 1px,rgba(0,0,0,0) 1px 8px);
+}
+.bar::before{
+  content:"";position:absolute;inset:0;z-index:3;
+  background:linear-gradient(180deg,
+    rgba(255,255,255,.26) 0%,
+    rgba(255,255,255,.07) 36%,
+    rgba(255,255,255,0) 37%,
+    rgba(0,0,0,.10) 62%,
+    rgba(0,0,0,.34) 100%);
+}
+
+/* ── super + assist gauges ────────────────────────────────
+   One meter drives two gauges: 0-50 fills ASSIST, 50-100
+   fills SUPER. Each ignites its own neon glow when full.    */
+.gauges{display:flex;gap:6px;width:82%;}
+.fighter-block.p2 .gauges{flex-direction:row-reverse;align-self:flex-end;}
+.gauge{
+  position:relative;flex:1;height:9px;
+  transform:skewX(-15deg);overflow:hidden;
+  background:linear-gradient(180deg,#050303,#100c0b);
+  border:1px solid #3a2e2a;
+  transition:box-shadow .22s ease,border-color .22s ease;
+}
+.gauge i{
+  position:absolute;inset:0;transform-origin:left center;transform:scaleX(0);
+  transition:transform .18s linear;
+}
+.p2 .gauge i{transform-origin:right center;}
+.gauge.assist i{background:linear-gradient(180deg,#FFE9A3,#F0C24B 55%,#8A6512);}
+.gauge.super  i{background:linear-gradient(180deg,#D9FBFF,#63D9F0 55%,#14636F);}
+.gauge b{
+  position:absolute;inset:0;z-index:4;
+  font-family:var(--mono);font-weight:400;font-size:6.5px;letter-spacing:.26em;
+  color:rgba(237,227,210,.55);
+  display:flex;align-items:center;justify-content:center;
+  transform:skewX(15deg);
+}
+.gauge .sheen{
+  position:absolute;inset:0;z-index:3;opacity:0;
+  background:linear-gradient(100deg,transparent 42%,rgba(255,255,255,.6) 50%,transparent 58%);
+}
+.gauge.lit .sheen{opacity:1;animation:sheen 1.5s linear infinite;}
+.gauge.lit b{color:#0b0809;}
+
+.gauge.assist.lit{
+  border-color:#F0C24B;
+  box-shadow:0 0 10px rgba(240,194,75,.85),0 0 26px rgba(240,194,75,.45),inset 0 0 8px rgba(255,240,188,.55);
+}
+/* locked out: the bar refills over the cooldown instead of showing charge */
+.gauge.assist.cooling{border-color:#3E4A52;box-shadow:none;}
+.gauge.assist.cooling i{
+  background:repeating-linear-gradient(115deg,#4A5560 0 6px,#38424B 6px 12px);
+}
+.gauge.assist.cooling b{color:#8FA0AC;}
+.gauge.super.lit{
+  border-color:#8FE8FA;
+  box-shadow:0 0 12px rgba(120,230,250,.95),0 0 34px rgba(120,230,250,.55),inset 0 0 10px rgba(217,251,255,.6);
+  animation:neonThrob .8s ease-in-out infinite;
+}
+@keyframes sheen{from{transform:translateX(-110%)}to{transform:translateX(110%)}}
+@keyframes neonThrob{
+  0%,100%{box-shadow:0 0 12px rgba(120,230,250,.9),0 0 30px rgba(120,230,250,.5),inset 0 0 10px rgba(217,251,255,.55);}
+  50%    {box-shadow:0 0 22px rgba(190,245,255,1),0 0 52px rgba(120,230,250,.8),inset 0 0 16px rgba(255,255,255,.75);}
+}
+
+/* ── combo counter ────────────────────────────────────────
+   Pinned to the screen edges, bumps in scale on every hit.  */
+.combo{
+  position:absolute;top:104px;z-index:4;
+  display:flex;flex-direction:column;gap:1px;
+  opacity:0;transition:opacity .22s ease;
+}
+.combo.p1{left:28px;align-items:flex-start;}
+.combo.p2{right:28px;align-items:flex-end;}
+.combo.on{opacity:1;}
+.cnum{
+  font-family:var(--num);font-weight:700;line-height:.76;
+  font-size:clamp(46px,6vw,84px);
+  color:var(--acc,var(--gold));
+  font-variant-numeric:tabular-nums;
+  text-shadow:0 0 30px var(--acc,var(--gold)),0 0 60px rgba(0,0,0,.9),0 3px 0 rgba(0,0,0,.9);
+  transform-origin:center;
+}
+.combo.p2 .cnum{transform-origin:center;}
+.clab{
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.34em;
+  color:var(--bone);opacity:.72;
+}
+.combo.bump .cnum{animation:comboBump .27s cubic-bezier(.18,1.5,.32,1) both;}
+@keyframes comboBump{
+  0%  {transform:scale(2.0) rotate(-5deg);filter:blur(4px);opacity:.55;}
+  42% {transform:scale(.88) rotate(2deg);filter:blur(0);opacity:1;}
+  72% {transform:scale(1.09) rotate(-1deg);}
+  100%{transform:scale(1) rotate(0);}
+}
+
+.meta{display:flex;align-items:center;gap:9px;flex-wrap:wrap;}
+.fighter-block.p2 .meta{flex-direction:row-reverse;}
+.stocks{display:flex;gap:5px;}
+.stocks span{width:9px;height:9px;transform:rotate(45deg);border:1px solid var(--smoke);}
+.stocks span.on{background:var(--acc,var(--ember));border-color:var(--acc,var(--ember));}
+
+.pill{
+  font-family:var(--mono);font-size:9px;letter-spacing:.16em;
+  padding:3px 8px;border:1px solid rgba(255,255,255,.10);
+  color:var(--dust);background:rgba(11,8,9,.62);white-space:nowrap;
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+}
+.pill.startup{color:var(--ember-hot);border-color:#6b4620;}
+.pill.active{color:#fff;background:var(--strike);border-color:var(--strike);}
+.pill.recover{color:var(--dust);border-color:var(--smoke);}
+.pill.block{color:var(--spectre);border-color:#2b5c66;}
+.pill.hurt{color:#ffb2a6;border-color:var(--blood);background:rgba(126,27,34,.55);}
+.pill.ko{color:#fff;background:var(--blood);border-color:var(--blood);}
+.pill.ready{color:var(--gold);border-color:#6b551f;}
+.pill.live{color:#0b0809;background:var(--gold);border-color:var(--gold);}
+.pill.maxed{color:#0b0809;background:#fff6d8;border-color:#fff6d8;animation:blink .7s steps(2,end) infinite;}
+.pill.powered{color:#0b0809;background:var(--acc,var(--ember-hot));border-color:var(--acc,var(--ember-hot));}
+@keyframes blink{0%{opacity:1}50%{opacity:.55}100%{opacity:1}}
+
+.timer{
+  position:relative;
+  font-family:var(--num);font-weight:600;font-size:62px;line-height:.78;
+  letter-spacing:.01em;color:var(--bone);
+  font-variant-numeric:tabular-nums;
+  text-shadow:0 0 30px rgba(0,0,0,.9),0 0 60px var(--ember);
+  padding:6px 20px 2px;text-align:center;
+}
+/* a cut frame around the clock: two hairlines and clipped corners, so the
+   most-read number on the screen has somewhere to sit */
+.timer::before{
+  content:"";position:absolute;inset:0 0 4px;z-index:-1;
+  background:linear-gradient(180deg,rgba(10,7,9,.72),rgba(10,7,9,.30));
+  border:1px solid var(--smoke);
+  border-top:2px solid var(--ember);
+  clip-path:polygon(9px 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,0 100%,0 9px);
+}
+.timer.low{color:#FF6A4D;text-shadow:0 0 34px rgba(255,59,36,.95);animation:tick .5s steps(2,end) infinite;}
+@keyframes tick{0%,100%{opacity:1}50%{opacity:.62}}
+.timer small{
+  display:block;font-family:var(--mono);font-size:8.5px;font-weight:400;
+  letter-spacing:.26em;color:var(--dust);margin-top:1px;text-shadow:none;
+}
+
+/* ── bottom-left: rig + frame data ──────────────────────── */
+#rig{
+  display:none;
+  position:absolute;left:26px;bottom:24px;width:262px;
+  background:linear-gradient(180deg,rgba(16,12,14,.76),rgba(8,6,8,.80));
+  backdrop-filter:blur(10px) saturate(1.2);-webkit-backdrop-filter:blur(10px) saturate(1.2);
+  border:1px solid rgba(255,255,255,.09);border-left:2px solid var(--ember);
+  box-shadow:0 18px 50px -20px rgba(0,0,0,.9);
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%);
+  padding:11px 13px 12px;font-family:var(--mono);
+}
+#rig h2{margin:0 0 8px;font-family:var(--ui);font-weight:700;font-size:11px;letter-spacing:.2em;color:var(--dust);}
+#rig h2.second{margin-top:12px;padding-top:10px;border-top:1px solid rgba(58,46,42,.8);}
+.row{
+  display:flex;justify-content:space-between;align-items:baseline;gap:12px;
+  font-size:11px;padding:2.5px 0;color:var(--bone);
+}
+.row b{font-weight:400;color:var(--dust);letter-spacing:.06em;}
+.row var{font-style:normal;font-variant-numeric:tabular-nums;text-align:right;}
+.row var.hot{color:var(--strike);}
+.row var.on{color:var(--ember-hot);}
+.row var.gold{color:var(--gold);}
+
+.track{margin-top:9px;}
+.track .caps{display:flex;justify-content:space-between;font-size:9px;letter-spacing:.12em;color:var(--dust);margin-bottom:4px;}
+.rail{position:relative;height:5px;background:#0F0B0B;border:1px solid var(--smoke);}
+.rail i{position:absolute;top:0;bottom:0;left:0;background:linear-gradient(90deg,rgba(226,97,43,.15),var(--ember));}
+.rail u{position:absolute;top:-4px;width:2px;height:11px;background:var(--bone);box-shadow:0 0 7px rgba(237,227,210,.7);}
+
+/* ── bottom-right: controls ─────────────────────────────── */
+#keys{position:absolute;right:22px;bottom:20px;display:flex;flex-direction:column;align-items:flex-end;gap:8px;transform:scale(.82);transform-origin:100% 100%;opacity:.55;}
+/* the legend is a reminder, not furniture: it dims to a ghost once the
+   round is under way and comes back whenever the select screen does */
+/* The legend is a reminder for the select screen, not furniture for the
+   match. It used to linger at 13% through every round, which is the kind
+   of thing that reads as a developer build in a screenshot. */
+body.hushkeys #keys{opacity:0;visibility:hidden;}
+body.hushkeys #keys:hover{opacity:.9;visibility:visible;}
+#keys{pointer-events:auto;}
+#keys:hover{opacity:.95;}
+.cols{display:flex;gap:26px;text-align:right;}
+.side{display:flex;flex-direction:column;gap:5px;align-items:flex-end;}
+.side h3{margin:0;font-size:10px;font-weight:600;letter-spacing:.2em;color:var(--dust);}
+.side.a h3{color:var(--ember);}
+.side.b h3{color:var(--spectre);}
+.keyline{display:flex;align-items:center;gap:6px;font-size:11.5px;letter-spacing:.06em;color:var(--dust);}
+.keyline.super{color:var(--gold);}
+.syskey{
+  display:flex;align-items:center;gap:6px;font-size:11px;letter-spacing:.06em;
+  color:var(--dust);padding-top:8px;border-top:1px solid rgba(58,46,42,.7);
+}
+kbd{
+  font-family:var(--mono);font-size:10px;color:var(--bone);
+  background:#181211;border:1px solid var(--smoke);border-bottom-width:2px;
+  padding:2px 5px;min-width:19px;text-align:center;display:inline-block;
+}
+
+/* ── announcer: keyframed text overlays ─────────────────── */
+#call{
+  position:absolute;inset:0;display:grid;place-items:center;
+  text-align:center;opacity:0;
+}
+#call span{display:block;}
+#call.show{opacity:1;}
+
+#call span{position:relative;}
+#call.slam span{
+  font-family:var(--logo);font-weight:900;
+  font-size:clamp(58px,13vw,160px);letter-spacing:.04em;
+  color:var(--bone);
+  text-shadow:0 0 60px rgba(226,97,43,.6),0 0 120px rgba(255,180,84,.35);
+  animation:slamIn .5s cubic-bezier(.14,1.6,.3,1) both;
+}
+/* scales up hard from nothing, overshoots, then settles */
+@keyframes slamIn{
+  0%  {transform:scale(.12) rotate(-6deg);opacity:0;filter:blur(24px);}
+  26% {opacity:1;}
+  46% {transform:scale(1.38) rotate(2deg);filter:blur(0);}
+  68% {transform:scale(.93) rotate(-1deg);}
+  84% {transform:scale(1.05);}
+  100%{transform:scale(1) rotate(0);opacity:1;}
+}
+/* shockwave ring thrown off the impact of the word landing */
+#call.slam span::after{
+  content:"";position:absolute;left:50%;top:50%;
+  border:3px solid rgba(240,194,75,.75);border-radius:50%;
+  transform:translate(-50%,-50%);pointer-events:none;
+  animation:shockRing .62s cubic-bezier(.1,.7,.3,1) both;
+}
+@keyframes shockRing{
+  0%  {width:0;height:0;opacity:0;border-width:6px;}
+  18% {opacity:.85;}
+  100%{width:150vmax;height:150vmax;opacity:0;border-width:1px;}
+}
+
+#call.toast span{
+  font-family:var(--tech);font-weight:700;
+  font-size:clamp(20px,3.2vw,40px);letter-spacing:.3em;
+  color:var(--gold);text-shadow:0 0 34px rgba(240,194,75,.6);
+  animation:toastRise 1.1s ease-out both;
+}
+@keyframes toastRise{
+  0%  {transform:translateY(26px) scale(.72);opacity:0;}
+  22% {transform:translateY(0) scale(1.06);opacity:1;}
+  70% {opacity:1;}
+  100%{transform:translateY(-34px) scale(1);opacity:0;}
+}
+
+#call.warn span{
+  font-family:var(--tech);font-weight:900;
+  font-size:clamp(42px,9vw,110px);letter-spacing:.08em;
+  color:#FF6A4D;text-shadow:0 0 44px rgba(255,59,36,.8);
+  animation:warnBeat .5s ease-out 3 both;
+}
+@keyframes warnBeat{
+  0%  {transform:scale(.55);opacity:0;}
+  35% {transform:scale(1.16);opacity:1;}
+  70% {transform:scale(1);opacity:1;}
+  100%{transform:scale(1.02);opacity:.55;}
+}
+
+#call.out span{animation:callOut .3s ease-in both;}
+@keyframes callOut{to{transform:scale(1.4);opacity:0;filter:blur(6px);}}
+
+/* ── character select ─────────────────────────────────────
+   Everything is pinned to the outer edges; the whole middle
+   of the frame is left to the 3D fighters.                  */
+#select{
+  display:grid;
+  grid-template-columns:minmax(190px,19vw) 1fr minmax(190px,19vw);
+  grid-template-rows:auto 1fr auto;
+  align-items:start;
+}
+
+/* title, top centre */
+.selcenter{
+  position:relative;
+  grid-column:2;grid-row:1;
+  display:flex;flex-direction:column;align-items:center;gap:5px;
+  padding:22px 12px 0;text-align:center;
+}
+.selcenter h1{
+  margin:0;font-family:var(--display);font-weight:900;
+  font-size:clamp(22px,2.9vw,38px);letter-spacing:.22em;color:var(--bone);
+  text-shadow:0 2px 26px rgba(6,10,14,.95),0 0 44px rgba(226,97,43,.35);
+}
+.selcenter::before{
+  content:"";position:absolute;inset:-24px -60px -30px;z-index:-1;
+  pointer-events:none;
+  background:radial-gradient(62% 100% at 50% 0%,rgba(5,9,13,.80),rgba(5,9,13,0) 76%);
+}
+.selcenter .sub{
+  font-family:var(--mono);font-size:9px;letter-spacing:.34em;color:#C6BCAC;
+  text-shadow:0 1px 10px rgba(5,9,13,1);
+}
+.vs{
+  font-family:var(--display);font-weight:900;font-size:15px;
+  letter-spacing:.3em;color:var(--bone);opacity:.5;margin-top:2px;
+  text-shadow:0 1px 12px rgba(5,9,13,1);
+}
+
+/* -- edge columns ---------------------------------------- */
+.selside{
+  grid-row:1 / span 3;
+  position:relative;
+  display:flex;flex-direction:column;gap:10px;
+  padding:20px 16px;
+  background:linear-gradient(90deg,rgba(6,5,9,.90) 40%,rgba(6,5,9,.55) 72%,rgba(6,5,9,0));
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  -webkit-mask-image:linear-gradient(90deg,#000 62%,transparent);
+  mask-image:linear-gradient(90deg,#000 62%,transparent);
+}
+.selside.p1{grid-column:1;}
+.selside.p2{
+  grid-column:3;text-align:right;
+  background:linear-gradient(270deg,rgba(6,5,9,.90) 40%,rgba(6,5,9,.55) 72%,rgba(6,5,9,0));
+  -webkit-mask-image:linear-gradient(270deg,#000 62%,transparent);
+  mask-image:linear-gradient(270deg,#000 62%,transparent);
+}
+.selhead{display:flex;flex-direction:column;gap:1px;}
+.seltag{font-family:var(--mono);font-size:9px;letter-spacing:.28em;color:var(--dust);}
+.selpick{
+  font-family:var(--display);font-weight:900;font-size:19px;
+  letter-spacing:.04em;color:var(--acc,var(--bone));line-height:1.1;
+}
+.selsub{font-size:11px;letter-spacing:.12em;color:var(--dust);}
+
+/* -- per-fighter stat readout ----------------------------
+   The roster already carried speed / power / reach numbers that only
+   the physics ever saw. Showing them turns four names into four
+   choices — it is the difference between picking a colour and
+   picking a fighter.                                                */
+.stats{display:flex;flex-direction:column;gap:4px;margin:-2px 0 2px;}
+.stat{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:8px;letter-spacing:.2em;color:var(--dust);}
+.selside.p2 .stat{flex-direction:row-reverse;}
+.stat b{font-weight:400;min-width:24px;}
+.stat i{position:relative;flex:1;height:4px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.08);overflow:hidden;}
+.stat s{
+  position:absolute;inset:0;transform-origin:left center;transform:scaleX(var(--v,0));
+  background:linear-gradient(90deg,rgba(255,255,255,.16),var(--acc));
+  transition:transform .32s cubic-bezier(.2,.8,.25,1);
+}
+.selside.p2 .stat s{transform-origin:right center;}
+
+/* -- stage / theme picker -------------------------------- */
+.themerow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;}
+.themelab{font-family:var(--mono);font-size:8.5px;letter-spacing:.28em;color:var(--dust);}
+.themetag{
+  font-family:var(--ui);font-size:10px;letter-spacing:.14em;color:var(--bone);
+  opacity:.9;min-width:184px;text-align:left;
+  text-shadow:0 1px 8px rgba(0,0,0,.95);
+}
+.castlab{margin-left:6px;}
+.castswitch button{padding:6px 11px;font-size:9px;}
+.castswitch button.on{background:var(--ember);color:#080B0E;}
+.themepick{display:flex;gap:5px;}
+.themepick button{
+  position:relative;width:26px;height:16px;padding:0;cursor:pointer;
+  border:1px solid rgba(255,255,255,.16);background:var(--sw,#888);
+  transition:transform .14s,box-shadow .14s,border-color .14s;
+}
+.themepick button:hover{transform:translateY(-2px);}
+.themepick button.on{
+  border-color:var(--bone);
+  box-shadow:0 0 0 1px var(--bone),0 0 16px -2px var(--sw);
+  transform:translateY(-2px);
+}
+.themepick button.on::after{
+  content:"";position:absolute;left:50%;bottom:-6px;width:3px;height:3px;
+  margin-left:-1.5px;background:var(--bone);
+}
+
+/* -- title lockup ---------------------------------------- */
+.selcenter h1 .tl{color:var(--bone);}
+.selcenter h1 .tr{
+  background:linear-gradient(100deg,var(--ember) 8%,var(--ember-hot) 46%,var(--ember) 86%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  -webkit-text-fill-color:transparent;
+}
+.rule{display:flex;align-items:center;gap:8px;width:min(320px,60%);margin:2px 0 1px;}
+.rule i{flex:1;height:1px;background:linear-gradient(90deg,transparent,var(--smoke),transparent);}
+.rule em{width:5px;height:5px;transform:rotate(45deg);background:var(--ember);box-shadow:0 0 10px var(--ember);}
+
+/* -- portrait cards -------------------------------------- */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.card{
+  position:relative;display:flex;flex-direction:column;align-items:stretch;gap:0;
+  padding:0;cursor:pointer;font:inherit;color:var(--bone);
+  background:#0B0E12;border:1px solid rgba(255,255,255,.10);overflow:hidden;
+  clip-path:polygon(0 0,calc(100% - 9px) 0,100% 9px,100% 100%,9px 100%,0 calc(100% - 9px));
+  transition:border-color .16s,transform .16s,box-shadow .16s;
+}
+.card:hover{transform:translateY(-3px);border-color:var(--acc);}
+.card:focus-visible{outline:2px solid var(--bone);outline-offset:2px;}
+.card.sel{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc),0 6px 26px -8px var(--acc);}
+
+.portrait{
+  position:relative;width:100%;aspect-ratio:1/1;
+  display:grid;place-items:center;overflow:hidden;
+  background:radial-gradient(120% 120% at 50% 12%,#1A222A,#080B0E);
+  background-size:cover;background-position:center;
+  transition:background-color .18s,filter .18s,transform .22s;
+}
+/* once a render has landed the CSS ground and the placeholder glyph both
+   get out of its way — the card is the render */
+.portrait.shot{background-color:#07090C;filter:saturate(.94) brightness(.92);}
+.card.sel .portrait.shot{filter:saturate(1.14) brightness(1.14);transform:scale(1.05);}
+.card:hover .portrait.shot{filter:saturate(1.06) brightness(1.04);}
+.portrait.shot .glyph{display:none;}
+/* a scanline wash and a floor shadow, so the render sits in the card
+   instead of floating as a cut-out */
+.portrait.shot::after{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:
+    linear-gradient(to top,rgba(5,7,10,.86) 0,rgba(5,7,10,0) 30%),
+    repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0 1px,rgba(0,0,0,0) 1px 3px);
+}
+.card.sel .portrait{background-color:#12161B;}
+.card.sel .portrait:not(.shot){background:radial-gradient(120% 120% at 50% 12%,var(--acc),#0A0D10 128%);}
+.glyph{
+  width:46%;aspect-ratio:1/1;background:var(--acc);
+  transition:background .18s,transform .18s;
+}
+.card.sel .glyph{background:#080B0E;transform:scale(1.12);}
+.card[data-index="0"] .glyph{clip-path:polygon(50% 0,100% 36%,82% 100%,18% 100%,0 36%);}
+.card[data-index="1"] .glyph{clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);}
+.card[data-index="2"] .glyph{clip-path:polygon(4% 0,96% 0,84% 100%,16% 100%);}
+.card[data-index="3"] .glyph{clip-path:polygon(50% 0,93% 25%,93% 75%,50% 100%,7% 75%,7% 25%);}
+
+.cmeta{display:flex;flex-direction:column;gap:1px;padding:7px 8px 8px;text-align:center;}
+.cname{
+  font-family:var(--display);font-weight:600;font-size:11.5px;
+  letter-spacing:.05em;line-height:1.1;
+}
+.ctitle{font-size:9.5px;letter-spacing:.09em;color:var(--dust);line-height:1.15;}
+.card.sel .ctitle{color:var(--acc);}
+.card.lock::after{
+  content:"LOCKED";position:absolute;left:0;right:0;top:0;
+  font-family:var(--mono);font-size:7.5px;letter-spacing:.24em;
+  color:#080B0E;background:var(--acc);padding:2px 0;text-align:center;
+}
+
+/* -- assist row ------------------------------------------ */
+.assistrow{display:flex;flex-direction:column;gap:5px;}
+.assistrow h4{margin:0;font-size:9px;font-weight:600;letter-spacing:.24em;color:var(--dust);}
+.chips{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+.chip-card{
+  display:flex;flex-direction:column;gap:1px;padding:7px 6px;cursor:pointer;
+  font:inherit;color:var(--dust);text-align:center;
+  background:#0C0F12;border:1px solid #26303A;
+  transition:border-color .16s,color .16s,box-shadow .16s,background .16s;
+}
+.chip-card:hover{border-color:var(--acc2);}
+.chip-card.sel{
+  border-color:var(--acc2);color:#080B0E;background:var(--acc2);
+  box-shadow:0 0 18px -6px var(--acc2);
+}
+.chip-card b{font-weight:600;font-size:10px;letter-spacing:.1em;}
+.chip-card small{font-size:8px;letter-spacing:.05em;opacity:.75;}
+
+.lockstate{
+  margin-top:auto;font-family:var(--mono);font-size:9px;letter-spacing:.16em;
+  color:var(--dust);border-top:1px solid rgba(58,46,42,.7);padding-top:9px;
+}
+.lockstate.done{color:var(--acc);}
+
+/* -- bottom centre: mode + one start button -------------- */
+.startwrap{
+  position:relative;
+  grid-column:2;grid-row:3;
+  display:flex;flex-direction:column;align-items:center;gap:12px;
+  padding:0 12px 30px;
+}
+.startwrap::before{
+  content:"";position:absolute;inset:-40px -70px -10px;z-index:-1;
+  pointer-events:none;
+  background:radial-gradient(62% 100% at 50% 100%,rgba(5,9,13,.82),rgba(5,9,13,0) 76%);
+}
+.switchrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;}
+.modeswitch{display:flex;border:1px solid #26303A;background:rgba(8,11,14,.8);}
+/* the difficulty picker is meaningless against a human, so it leaves with the CPU */
+.diffswitch{transition:opacity .2s ease;}
+.diffswitch button{padding:7px 13px;font-size:9.5px;}
+.diffswitch button.on{background:var(--ember);color:#080B0E;}
+body.versus .diffswitch{opacity:0;pointer-events:none;}
+.modeswitch button{
+  font-family:var(--ui);font-weight:600;font-size:10px;letter-spacing:.2em;
+  color:var(--dust);background:transparent;border:0;padding:7px 16px;cursor:pointer;
+  transition:color .18s,background .18s;
+}
+.modeswitch button.on{color:#080B0E;background:var(--bone);}
+#startbtn{
+  font-family:var(--ui);font-weight:700;font-size:14px;letter-spacing:.3em;
+  color:#080B0E;background:var(--bone);
+  border:0;padding:15px 50px;cursor:pointer;
+  clip-path:polygon(12px 0,100% 0,calc(100% - 12px) 100%,0 100%);
+  box-shadow:0 0 0 1px rgba(255,255,255,.35),0 12px 44px -14px rgba(255,255,255,.75);
+  transition:background .2s,color .2s,box-shadow .2s,transform .12s;
+}
+#startbtn:hover{transform:translateY(-1px);}
+#startbtn:active{transform:translateY(1px);}
+#startbtn.ready{
+  background:var(--gold);
+  box-shadow:0 0 0 1px var(--gold),0 12px 46px -10px var(--gold);
+  animation:startPulse 1.5s ease-in-out infinite;
+}
+#startbtn:focus-visible{outline:2px solid var(--bone);outline-offset:4px;}
+@keyframes startPulse{
+  0%,100%{box-shadow:0 0 0 1px var(--gold),0 10px 34px -12px var(--gold);}
+  50%    {box-shadow:0 0 0 1px var(--gold),0 14px 56px -8px var(--gold);}
+}
+.selhint{
+  margin:0;font-family:var(--mono);font-size:9px;letter-spacing:.2em;
+  color:#C6BCAC;text-align:center;
+  text-shadow:0 1px 10px rgba(5,9,13,1);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   DESIGN SYSTEM — obsidian glass, metallic edges, amber/crimson
+
+   Everything above this point is the original warm-ember skin, kept
+   because the stage themes still drive it (`--acc` is written per theme
+   and per fighter). Everything below is the product chrome, and it is
+   deliberately NOT themed: a health bar that changes colour with the
+   stage is a health bar you have to re-learn on every stage. Stage
+   colour lives in the 3D; the HUD stays constant.
+   ═══════════════════════════════════════════════════════════ */
+:root{
+  --amber:#FFAA00;
+  --amber-dim:#7A5200;
+  --crimson:#E63946;
+  --crimson-dim:#6E1A21;
+  --hp-full:#7BE0A0;
+  --hp-mid:#E8D24A;
+
+  --glass:rgba(15,15,22,.85);
+  --glass-hi:rgba(38,38,52,.72);
+  --metal:#333344;
+  --metal-hi:#5A5A72;
+  --ink-2:#0B0B11;
+  --text-1:#EFEFF5;
+  --text-2:#9A9AB0;
+}
+
+/* ── surfaces ──────────────────────────────────────────────
+   One glass recipe, used by every panel. The blur is an enhancement:
+   each surface carries enough alpha to be legible if the compositor
+   drops backdrop-filter (it does, on software raster paths). */
+#pause,
+#modal,
+#results,
+#bye{
+  background:radial-gradient(120% 100% at 50% 45%,rgba(15,15,22,.72),rgba(6,6,10,.94));
+  backdrop-filter:blur(12px) saturate(115%);
+  -webkit-backdrop-filter:blur(12px) saturate(115%);
+}
+.mbox,.rbox,#pause > div{
+  background:linear-gradient(160deg,var(--glass-hi),var(--glass));
+  border:1px solid var(--metal);
+  border-radius:14px;
+  box-shadow:
+    0 40px 110px rgba(0,0,0,.72),
+    0 0 0 1px rgba(255,170,0,.06),
+    inset 0 1px 0 rgba(255,255,255,.07),
+    inset 0 -1px 0 rgba(0,0,0,.45);
+}
+#pause > div{padding:30px 38px 28px;}
+.mbox header{
+  background:linear-gradient(180deg,rgba(38,38,52,.86),rgba(15,15,22,.62));
+  border-bottom:1px solid var(--metal);
+  border-radius:14px 14px 0 0;
+}
+
+/* ── typography ────────────────────────────────────────────
+   Cinzel Decorative carries every heading and announcement; Rajdhani
+   carries every number and label. Nothing else gets a voice. */
+#pause h2,#results h2,#bye h2,.mbox h3,.rverdict{
+  font-family:var(--logo);
+}
+.fname,.timer,.cnum,.rrounds,.rstats dd,.pill,.badge b,.tag,
+.rname,.rsub,.mbox h3,.seltag{
+  font-family:var(--hud);
+  font-variant-numeric:tabular-nums;
+}
+.tbtn,#pause button,.seg button,.modeswitch button,#startbtn,#mclose{
+  font-family:var(--tech);
+}
+
+/* ── status rail ───────────────────────────────────────────
+   Pinned to the top edge as one grid; nothing in the middle of the
+   frame, nothing that grows into the fight. */
+.status{padding:16px 22px 0;gap:26px;}
+.fighter-block{gap:7px;}
+.nameplate{align-items:center;gap:9px;}
+.fname{
+  font-weight:700;font-size:17px;letter-spacing:.10em;
+  color:var(--text-1);
+  text-shadow:0 0 18px rgba(255,170,0,.30),0 2px 6px rgba(0,0,0,.9);
+}
+.tag{
+  font-size:9px;font-weight:600;letter-spacing:.20em;color:var(--text-2);
+  padding:2px 7px;border:1px solid var(--metal);border-radius:3px;
+  background:var(--glass);
+}
+
+/* ── health: metallic frame, two-tier decay ────────────────
+   The health itself runs green -> yellow -> crimson as it drops; the
+   trailing bar underneath is flat crimson, so the band that appears
+   after a hit IS the damage just taken. The previous skin had these
+   the other way round, which meant a full bar was red and a dying one
+   was gold — readable once you knew, wrong at a glance. */
+.bar{
+  height:21px;
+  transform:skewX(-15deg);
+  background:linear-gradient(180deg,#07070B 0%,#101018 46%,#1A1A26 53%,#07070B 100%);
+  border:1px solid var(--metal-hi);
+  border-radius:2px;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.16),
+    inset 0 -2px 4px rgba(0,0,0,.95),
+    0 0 0 1px rgba(0,0,0,.9),
+    0 4px 16px rgba(0,0,0,.75);
+}
+.hp{
+  background:linear-gradient(180deg,
+    #C8FFDE 0%, var(--hp-full) 30%, var(--hp-mid) 64%, #B98A17 88%, #4E3A06 100%);
+  transition:transform .14s cubic-bezier(.2,.85,.25,1);
+}
+.chip{
+  background:linear-gradient(180deg,#FF8A93 0%,var(--crimson) 44%,#A3242F 66%,var(--crimson-dim) 100%);
+  transition:transform .66s cubic-bezier(.25,.7,.2,1) .22s;
+}
+/* a hair of amber light along the leading edge of the health */
+.bar .hp::after{
+  content:"";position:absolute;top:0;bottom:0;right:0;width:2px;
+  background:var(--amber);
+  box-shadow:0 0 10px var(--amber),0 0 22px rgba(255,170,0,.6);
+}
+.bar::after{
+  background:repeating-linear-gradient(90deg,rgba(0,0,0,.34) 0 1px,rgba(0,0,0,0) 1px 9px);
+}
+
+/* ── hexagonal meter badges ────────────────────────────────
+   The assist and super gauges were two more bars under the health bar,
+   which is three horizontal bars saying three different things. As
+   hexagons they read as discrete charges at a glance, and the shape
+   gives the "full" state somewhere to glow. */
+.gauges{gap:9px;width:auto;}
+.fighter-block.p2 .gauges{flex-direction:row-reverse;}
+.gauge{
+  position:relative;flex:0 0 auto;
+  width:80px;height:34px;
+  transform:none;overflow:hidden;
+  clip-path:polygon(24% 0,76% 0,100% 50%,76% 100%,24% 100%,0 50%);
+  background:linear-gradient(180deg,#14141E,#0A0A10);
+  border:0;
+  transition:filter .22s ease;
+}
+/* the metallic edge, drawn as a clipped underlay because clip-path
+   removes the border */
+.gauge::before{
+  content:"";position:absolute;inset:0;z-index:3;pointer-events:none;
+  background:linear-gradient(180deg,rgba(255,255,255,.14),rgba(0,0,0,.5));
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;mask-composite:exclude;
+  padding:1px;
+}
+.gauge i{
+  position:absolute;inset:0;transform-origin:left center;transform:scaleX(0);
+  transition:transform .18s linear;
+}
+.p2 .gauge i{transform-origin:right center;}
+.gauge.assist i{background:linear-gradient(180deg,#FFD98A,var(--amber) 58%,var(--amber-dim));}
+.gauge.super  i{background:linear-gradient(180deg,#BFF0FF,#54C8E4 58%,#14636F);}
+.gauge b{
+  position:absolute;inset:0;z-index:4;
+  display:flex;align-items:center;justify-content:center;
+  font-size:7.5px;font-weight:700;letter-spacing:.09em;
+  color:var(--text-2);transform:none;
+  text-shadow:0 1px 3px rgba(0,0,0,.95);
+}
+.gauge .sheen{
+  position:absolute;inset:0;z-index:2;opacity:0;
+  background:linear-gradient(100deg,transparent 40%,rgba(255,255,255,.55) 50%,transparent 60%);
+}
+.gauge.lit .sheen{opacity:1;animation:sheen 1.6s linear infinite;}
+.gauge.lit b{color:#0A0A10;}
+
+.gauge.assist.lit{
+  filter:drop-shadow(0 0 9px rgba(255,170,0,.9)) drop-shadow(0 0 22px rgba(255,170,0,.5));
+}
+.gauge.super.lit{
+  filter:drop-shadow(0 0 11px rgba(84,200,228,.95)) drop-shadow(0 0 28px rgba(84,200,228,.55));
+  animation:hexThrob .9s ease-in-out infinite;
+}
+@keyframes hexThrob{
+  0%,100%{filter:drop-shadow(0 0 9px rgba(84,200,228,.85)) drop-shadow(0 0 22px rgba(84,200,228,.45));}
+  50%    {filter:drop-shadow(0 0 18px rgba(190,245,255,1)) drop-shadow(0 0 40px rgba(84,200,228,.8));}
+}
+.gauge.assist.cooling i{
+  background:repeating-linear-gradient(115deg,#3C4450 0 6px,#2A313B 6px 12px);
+}
+.gauge.assist.cooling{filter:none;}
+.gauge.assist.cooling b{color:#8FA0AC;}
+
+/* ── timer ─────────────────────────────────────────────────── */
+.timer{
+  font-family:var(--hud);font-weight:700;font-size:58px;
+  color:var(--text-1);letter-spacing:.02em;
+  padding:9px 26px 5px;
+  text-shadow:0 0 26px rgba(0,0,0,.95),0 0 46px rgba(255,170,0,.45);
+}
+.timer::before{
+  background:linear-gradient(180deg,var(--glass-hi),var(--glass));
+  border:1px solid var(--metal);
+  border-top:2px solid var(--amber);
+  border-radius:3px;
+  box-shadow:0 10px 34px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.06);
+  clip-path:polygon(11px 0,100% 0,100% calc(100% - 11px),calc(100% - 11px) 100%,0 100%,0 11px);
+}
+.timer small{
+  font-family:var(--mono);font-size:8px;letter-spacing:.28em;color:var(--text-2);
+}
+.timer.low{color:#FF8A92;text-shadow:0 0 30px rgba(230,57,70,.95);}
+
+/* ── state pills ───────────────────────────────────────────── */
+.pill{
+  font-size:9px;font-weight:600;letter-spacing:.14em;
+  padding:3px 9px;border-radius:3px;
+  border:1px solid var(--metal);background:var(--glass);color:var(--text-2);
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+}
+.pill.startup{color:var(--amber);border-color:var(--amber-dim);}
+.pill.active{color:#0A0A10;background:var(--crimson);border-color:var(--crimson);}
+.pill.block{color:#7FD8E8;border-color:#2B5C66;}
+.pill.hurt{color:#FFB2B8;border-color:var(--crimson-dim);background:rgba(230,57,70,.28);}
+.pill.ko{color:#fff;background:var(--crimson-dim);border-color:var(--crimson);}
+.pill.ready{color:var(--amber);border-color:var(--amber-dim);}
+.pill.live{color:#0A0A10;background:var(--amber);border-color:var(--amber);}
+.pill.maxed{color:#0A0A10;background:#FFF0C8;border-color:#FFF0C8;}
+.stocks span{border-color:var(--metal-hi);}
+.stocks span.on{background:var(--amber);border-color:var(--amber);box-shadow:0 0 10px rgba(255,170,0,.7);}
+
+/* ── combo counter ─────────────────────────────────────────── */
+.cnum{
+  font-weight:700;
+  color:var(--amber);
+  text-shadow:0 0 30px rgba(255,170,0,.85),0 0 64px rgba(0,0,0,.9),0 3px 0 rgba(0,0,0,.9);
+}
+.clab{font-family:var(--hud);font-weight:600;letter-spacing:.26em;color:var(--text-1);}
+
+/* ── announcer ─────────────────────────────────────────────── */
+#call.slam span{
+  font-family:var(--logo);font-weight:900;
+  color:var(--text-1);
+  text-shadow:
+    0 0 30px rgba(255,170,0,.75),
+    0 0 80px rgba(255,170,0,.35),
+    0 6px 0 rgba(0,0,0,.75),
+    0 10px 40px rgba(0,0,0,.9);
+}
+#call.slam span::after{border-color:rgba(255,170,0,.8);}
+#call.toast span{
+  font-family:var(--tech);font-weight:700;
+  color:var(--amber);
+  text-shadow:0 0 28px rgba(255,170,0,.7),0 3px 12px rgba(0,0,0,.9);
+}
+#call.warn span{
+  font-family:var(--tech);font-weight:900;
+  color:var(--crimson);
+  text-shadow:0 0 36px rgba(230,57,70,.9),0 3px 14px rgba(0,0,0,.95);
+}
+
+/* ── buttons ───────────────────────────────────────────────── */
+.tbtn{
+  border:1px solid var(--metal);border-radius:4px;
+  background:linear-gradient(180deg,var(--glass-hi),var(--glass));
+  color:var(--text-1);
+  text-shadow:0 0 12px rgba(255,170,0,.25);
+}
+.tbtn::before{background:linear-gradient(90deg,var(--amber),#FFD36B);}
+.tbtn:hover,.tbtn:focus-visible{
+  color:#0A0A10;border-color:var(--amber);
+  text-shadow:none;
+  box-shadow:0 0 0 1px rgba(255,170,0,.4),0 0 30px rgba(255,170,0,.3);
+}
+.tbtn.primary{border-color:var(--amber-dim);box-shadow:0 0 0 1px rgba(255,170,0,.2),0 10px 34px rgba(255,170,0,.12);}
+.tbtn.ghost:hover::before{background:linear-gradient(90deg,var(--crimson),#FF6B76);}
+.tbtn.ghost:hover{color:#fff;border-color:var(--crimson);}
+#pause button{
+  border:1px solid var(--metal);border-radius:4px;
+  background:linear-gradient(180deg,var(--glass-hi),var(--glass));
+  color:var(--text-1);
+}
+#pause button:hover{background:var(--amber);color:#0A0A10;border-color:var(--amber);}
+#pause button.quit:hover{background:var(--crimson);color:#fff;border-color:var(--crimson);}
+.seg button.on{background:var(--amber);color:#0A0A10;}
+.sw[aria-pressed="true"]{border-color:var(--amber);}
+.sw[aria-pressed="true"] i{background:rgba(255,170,0,.35);}
+.sw[aria-pressed="true"] i::after{background:var(--amber);}
+.sw[aria-pressed="true"] span{color:var(--amber);}
+.sld input[type=range]{
+  background:linear-gradient(90deg,var(--amber) 0,#FFD36B var(--pct,50%),
+    rgba(255,255,255,.14) var(--pct,50%),rgba(255,255,255,.14) 100%);
+}
+.sld input[type=range]::-webkit-slider-thumb{border-color:var(--amber);box-shadow:0 0 12px rgba(255,170,0,.7);}
+.sld var{color:var(--amber);}
+
+/* ── select + results accents ──────────────────────────────── */
+.rverdict{color:var(--amber);}
+.rrounds{color:var(--amber);text-shadow:0 0 26px rgba(255,170,0,.5);}
+.rside.won .rname{color:var(--amber);}
+.hgrid h4,.hsep{color:var(--amber);}
+.tips li::marker{color:var(--amber);}
+#startbtn{
+  background:linear-gradient(180deg,#FFF6E0,#E8CE8A);
+  color:#0A0A10;border-radius:3px;
+}
+#startbtn.ready{
+  background:linear-gradient(180deg,#FFD36B,var(--amber));
+  box-shadow:0 0 0 1px var(--amber),0 12px 46px -10px rgba(255,170,0,.85);
+}
+
+/* ── the keyboard grid is gone ─────────────────────────────
+   It was a reference card printed over the game. The same content
+   lives in CONTROLS, one key away, where it belongs. */
+#keys{display:none !important;}
+
+@media (max-width:1000px){
+  .gauge{width:66px;height:29px;}
+  .timer{font-size:38px;}
+  .fname{font-size:14px;}
+}
+
+/* ═══════════════════════════════════════════════════════════
+   WIDESCREEN LAYOUT PASS
+
+   Everything above sizes in px, which is correct for a browser page and
+   wrong for an arcade HUD: on a 1080p monitor a 17px name is small, on a
+   1440p one it is tiny, and the bars stop feeling like part of the game.
+
+   The HUD is sized in vh from here down. vh and not vw, because the frame
+   is letterboxed to the window and vertical space is what actually runs
+   out — a bar sized in vw grows without limit on an ultrawide. Every value
+   is clamped at both ends so the layout survives a phone and a 4K panel.
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── top edge: health ──────────────────────────────────────── */
+.status{
+  padding:clamp(14px,2.2vh,30px) clamp(16px,2.4vh,40px) 0;
+  gap:clamp(14px,2.4vh,34px);
+  align-items:start;
+}
+.fighter-block{gap:clamp(5px,.8vh,10px);}
+.nameplate{gap:clamp(6px,1vh,12px);}
+.fname{
+  font-size:clamp(13px,2.1vh,24px);
+  letter-spacing:.10em;
+  /* the glow the brief calls for, on the names, the clock and the buttons */
+  text-shadow:0 0 12px rgba(255,180,0,.8),0 2px 6px rgba(0,0,0,.95);
+}
+.tag{font-size:clamp(8px,1.05vh,12px);padding:.25vh .7vh;}
+.bar{height:clamp(15px,2.6vh,30px);}
+.meta{gap:clamp(6px,1vh,12px);}
+.pill{font-size:clamp(8px,1.05vh,12px);padding:.3vh .9vh;}
+.stocks span{width:clamp(7px,1.1vh,12px);height:clamp(7px,1.1vh,12px);}
+
+/* ── centre: the clock, in an octagonal plate ─────────────────
+   Centred by the grid it sits in, not by a transform: the status row is
+   `1fr auto 1fr`, so the middle column is already the centre of the frame
+   and a translateX would only fight it. */
+.timer{
+  font-size:clamp(30px,7.4vh,74px);
+  padding:clamp(6px,1vh,13px) clamp(16px,2.6vh,34px) clamp(3px,.5vh,7px);
+  text-shadow:0 0 12px rgba(255,180,0,.8),0 0 34px rgba(0,0,0,.95);
+}
+.timer::before{
+  /* octagon: eight cuts instead of the two it had */
+  clip-path:polygon(
+    12px 0, calc(100% - 12px) 0,
+    100% 12px, 100% calc(100% - 12px),
+    calc(100% - 12px) 100%, 12px 100%,
+    0 calc(100% - 12px), 0 12px);
+  background:
+    linear-gradient(180deg,rgba(46,46,62,.92),rgba(12,12,18,.94));
+  border:1px solid var(--metal-hi);
+  border-top:2px solid var(--amber);
+  border-radius:0;
+  box-shadow:
+    0 12px 40px rgba(0,0,0,.7),
+    inset 0 1px 0 rgba(255,255,255,.10),
+    inset 0 -10px 20px rgba(0,0,0,.5);
+}
+.timer small{font-size:clamp(7px,.95vh,11px);}
+
+/* ── bottom corners: the meters ───────────────────────────────
+   Moved out of the status block entirely. Stacked in the bottom corners
+   they stop competing with the health bars for the same horizontal band,
+   and they land where a thumb or an eye already goes looking for resource
+   gauges in a fighter. */
+.gauges{
+  position:fixed;
+  bottom:clamp(14px,2.6vh,34px);
+  flex-direction:column;
+  gap:clamp(5px,.9vh,11px);
+  z-index:3;
+}
+.fighter-block:not(.p2) .gauges{left:clamp(16px,2.6vh,42px);align-items:flex-start;}
+.fighter-block.p2 .gauges{right:clamp(16px,2.6vh,42px);align-items:flex-end;flex-direction:column;}
+.gauge{
+  width:clamp(58px,9.6vh,104px);
+  height:clamp(25px,4.1vh,44px);
+}
+.gauge b{font-size:clamp(6.5px,.95vh,10px);}
+
+/* ── combo counter clears the new meter corners ───────────── */
+.combo{top:clamp(72px,12vh,150px);}
+.combo.p1{left:clamp(16px,2.6vh,42px);}
+.combo.p2{right:clamp(16px,2.6vh,42px);}
+.cnum{font-size:clamp(34px,8vh,88px);}
+.clab{font-size:clamp(8px,1.1vh,12px);}
+
+/* ── announcer scales with the frame too ──────────────────── */
+#call.slam span{font-size:clamp(44px,15vh,170px);}
+#call.toast span{font-size:clamp(17px,3.6vh,42px);}
+#call.warn span{font-size:clamp(32px,10vh,118px);}
+
+/* ── menus: the glow the brief asks for on buttons ────────── */
+.tbtn,#pause button{
+  font-size:clamp(11px,1.5vh,15px);
+  padding:clamp(10px,1.6vh,17px) clamp(22px,3.4vh,40px);
+  text-shadow:0 0 12px rgba(255,180,0,.8);
+}
+.tbtn:hover,.tbtn:focus-visible,#pause button:hover{text-shadow:none;}
+#title h1{font-size:clamp(30px,9.4vh,96px);}
+.tglow{font-size:clamp(30px,9.4vh,96px);}
+
+/* On a genuinely short window the meters would collide with the start
+   button on the select screen; the select screen does not show them. */
+body.selecting .gauges,
+body.attract .gauges,
+body.titling .gauges{opacity:0;visibility:hidden;}
+
+/* ═══════════════════════════════════════════════════════════
+   BEAM / SHEEN / ORBS
+
+   Written natively for this file after the libraries.dev look. Their
+   components are React and sold under a Pro licence, so none of their
+   source is here — these are the same well-known effects (a travelling
+   conic-gradient border, a liquid-metal sheen, soft drifting orbs)
+   implemented in plain CSS against our own tokens.
+   ═══════════════════════════════════════════════════════════ */
+
+/* A custom property has to be registered before it can be animated —
+   an unregistered --angle jumps from 0 to 360 instead of sweeping.
+   Where @property is unsupported the beam simply does not travel and
+   the panel keeps its static metallic edge, which is the whole reason
+   the edge is still declared separately. */
+@property --beam-angle{
+  syntax:"<angle>";
+  initial-value:0deg;
+  inherits:false;
+}
+
+.beam{position:relative;}
+.beam::after{
+  content:"";
+  position:absolute;inset:0;
+  border-radius:inherit;
+  padding:1px;
+  background:conic-gradient(from var(--beam-angle) at 50% 50%,
+    transparent 0 68%,
+    rgba(255,170,0,.55) 80%,
+    var(--amber) 88%,
+    #FFF6E0 92%,
+    var(--amber) 95%,
+    transparent 100%);
+  /* the ring: paint the padding box, punch out the content box */
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;
+  mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+  mask-composite:exclude;
+  animation:beamTravel 5s linear infinite;
+  pointer-events:none;
+  z-index:4;
+}
+@keyframes beamTravel{to{--beam-angle:360deg;}}
+
+/* the beam is a highlight, not a siren: the primary action travels
+   faster and the resting panels barely move */
+.mbox.beam::after,.rbox.beam::after{animation-duration:9s;opacity:.75;}
+.tbtn.beam::after{animation-duration:6s;opacity:.5;}
+.tbtn.primary.beam::after,#startbtn.beam::after{animation-duration:3.2s;opacity:1;}
+.tbtn.beam:hover::after{opacity:1;animation-duration:2.4s;}
+
+/* ── liquid metal ───────────────────────────────────────────
+   A slow specular band travelling across the logo's gradient fill.
+   Because the fill is already a background-clip:text gradient, the
+   sheen is a second layer in the same stack rather than an overlay —
+   an overlay would sit in front of the glyphs and grey them out. */
+#title h1,.bmark,#results h2,#bye h2{
+  background-size:100% 100%,220% 100%;
+  background-repeat:no-repeat;
+  background-position:0 0,-60% 0;
+  animation:liquidSheen 7s ease-in-out infinite;
+}
+#title h1{
+  background-image:
+    linear-gradient(178deg,#FFF6E6 12%,#F0C24B 48%,#E2612B 78%,#9A3A18 100%),
+    linear-gradient(100deg,transparent 38%,rgba(255,255,255,.85) 50%,transparent 62%);
+}
+.bmark{
+  background-image:
+    linear-gradient(178deg,#FFF6E6 12%,#FFD36B 52%,#FFAA00 100%),
+    linear-gradient(100deg,transparent 38%,rgba(255,255,255,.9) 50%,transparent 62%);
+}
+#results h2,#bye h2{
+  background-image:
+    linear-gradient(178deg,#FFF6E6 10%,#F0C24B 50%,#E2612B 82%),
+    linear-gradient(100deg,transparent 38%,rgba(255,255,255,.8) 50%,transparent 62%);
+}
+@keyframes liquidSheen{
+  0%,100%{background-position:0 0,-60% 0;}
+  50%    {background-position:0 0,160% 0;}
+}
+
+/* ── orbs ───────────────────────────────────────────────────
+   Three large, heavily blurred radial gradients drifting behind the
+   boot curtain and the title. They are the cheapest possible way to
+   stop a near-black panel reading as an empty div, and at this blur
+   radius nothing about them needs to be precise. */
+.orbs{
+  position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:-1;
+}
+.orbs i{
+  position:absolute;display:block;border-radius:50%;
+  filter:blur(52px);opacity:.42;
+  will-change:transform;
+}
+.orbs i:nth-child(1){
+  width:46vh;height:46vh;left:6%;top:12%;
+  background:radial-gradient(circle,rgba(255,170,0,.85),transparent 66%);
+  animation:orbDrift 26s ease-in-out infinite;
+}
+.orbs i:nth-child(2){
+  width:38vh;height:38vh;right:8%;top:28%;
+  background:radial-gradient(circle,rgba(230,57,70,.7),transparent 66%);
+  animation:orbDrift 34s ease-in-out infinite reverse;
+}
+.orbs i:nth-child(3){
+  width:54vh;height:54vh;left:38%;bottom:-14%;
+  background:radial-gradient(circle,rgba(84,200,228,.5),transparent 68%);
+  animation:orbDrift 42s ease-in-out infinite;
+}
+@keyframes orbDrift{
+  0%,100%{transform:translate3d(0,0,0) scale(1);}
+  33%    {transform:translate3d(6vw,-4vh,0) scale(1.14);}
+  66%    {transform:translate3d(-5vw,5vh,0) scale(.9);}
+}
+
+@media (prefers-reduced-motion:reduce){
+  .beam::after,.orbs i{animation:none;}
+  #title h1,.bmark,#results h2,#bye h2{animation:none;}
+}
+
+/* ── impact calls ───────────────────────────────────────────
+   FINISH HIM and the combo counter get Bebas with a hot neon halo; the
+   round/fight slams keep Cinzel Decorative, because those are titles and
+   these are shouts. */
+#call.warn span,.cnum,.clab{font-family:var(--impact);letter-spacing:.06em;}
+#call.warn span{
+  font-weight:400;
+  color:#FF6A4D;
+  text-shadow:
+    0 0 15px rgba(255,60,0,.9),
+    0 0 46px rgba(255,60,0,.55),
+    0 4px 0 rgba(0,0,0,.8);
+}
+.cnum{
+  font-weight:400;
+  text-shadow:
+    0 0 15px rgba(255,60,0,.9),
+    0 0 40px rgba(255,170,0,.55),
+    0 3px 0 rgba(0,0,0,.9);
+}
+.clab{font-weight:400;letter-spacing:.22em;}
+
+/* ── circular assist cooldown ───────────────────────────────
+   A conic gradient swept by --cd, which the HUD writes as a percentage.
+   It rides on top of the hexagon rather than replacing it, so a glance
+   reads "how long" from the ring and "which meter" from the shape. */
+@property --cd{syntax:"<percentage>";initial-value:0%;inherits:false;}
+.gauge.assist::after{
+  content:"";
+  position:absolute;right:4px;top:50%;translate:0 -50%;
+  width:clamp(13px,2vh,20px);aspect-ratio:1;border-radius:50%;
+  background:conic-gradient(var(--amber) var(--cd,0%),rgba(255,255,255,.10) 0);
+  -webkit-mask:radial-gradient(circle,transparent 54%,#000 56%);
+  mask:radial-gradient(circle,transparent 54%,#000 56%);
+  opacity:0;transition:opacity .2s;
+  z-index:5;pointer-events:none;
+}
+.gauge.assist.cooling::after{opacity:1;}
+
+@media (prefers-reduced-motion:reduce){
+  #call.slam span,#call.toast span,#call.warn span,#call.out span,
+  .meter.max,.meter .sheen,.pill.maxed,#startbtn.on{animation:none;}
+  #call.toast span{opacity:1;transform:none;}
+}
+/* narrow: the in-fight legend shrinks into its corner rather than
+   stretching across the floor, and the select columns tighten */
+@media (max-width:1000px){
+  #rig{display:none;}
+  #keys{transform:scale(.78);transform-origin:100% 100%;gap:7px;}
+  .cols{gap:16px;}
+  .timer{font-size:34px;}
+  .fname{font-size:15px;}
+  .pill{display:none;}
+  #select{grid-template-columns:minmax(150px,22vw) 1fr minmax(150px,22vw);}
+  .selcenter h1{font-size:clamp(18px,3.2vw,26px);letter-spacing:.16em;}
+  .cname{font-size:10px;}
+  .ctitle{font-size:8.5px;}
+  #startbtn{font-size:12px;padding:12px 30px;letter-spacing:.24em;}
+}
+/* ── arcade pass ────────────────────────────────────────────
+   Orbitron on anything that should read as a machine talking, Rajdhani on
+   the small HUD labels, and an amber glow on everything interactive. The
+   glow is a text-shadow rather than a filter so it costs no compositing
+   layer and cannot blur the glyph edges. */
+.tbtn,#pause button,#mclose,.seg button{font-family:var(--tech);}
+#hud .pill,#hud .gauge b,#keys,.combo .clab,.status .tag{font-family:var(--hud);letter-spacing:.14em;}
+.fname{font-family:var(--tech);letter-spacing:.06em;}
+
+.tbtn{
+  text-shadow:0 0 12px rgba(226,97,43,.35);
+  box-shadow:inset 0 0 22px rgba(226,97,43,.05);
+}
+.tbtn:hover,.tbtn:focus-visible{
+  text-shadow:0 0 14px rgba(255,180,84,.75),0 0 34px rgba(226,97,43,.45);
+  box-shadow:0 0 0 1px rgba(255,180,84,.35),0 0 30px rgba(226,97,43,.30),
+             inset 0 0 26px rgba(255,180,84,.10);
+}
+.tbtn.primary{
+  text-shadow:0 0 16px rgba(255,180,84,.55);
+  box-shadow:0 0 0 1px rgba(226,97,43,.24),0 0 32px rgba(226,97,43,.16),
+             inset 0 0 26px rgba(226,97,43,.07);
+}
+#pause button:hover{text-shadow:none;}
+
+/* ── embers ─────────────────────────────────────────────────
+   Nine spans rising through the title. Each gets its own left offset,
+   size, delay and duration from an :nth-child rule, so the layer is pure
+   CSS — no script, no canvas, and it stops dead under reduced-motion. */
+.tembers{position:absolute;inset:0;overflow:hidden;pointer-events:none;}
+.tembers span{
+  position:absolute;bottom:-6%;border-radius:50%;
+  background:radial-gradient(circle,#FFD9A0 0,#FF8A32 42%,rgba(226,97,43,0) 72%);
+  opacity:0;animation:ember linear infinite;
+  will-change:transform,opacity;
+}
+.tembers span:nth-child(1){left:12%;width:5px;height:5px;animation-duration:9s;animation-delay:0s;}
+.tembers span:nth-child(2){left:23%;width:3px;height:3px;animation-duration:11s;animation-delay:1.4s;}
+.tembers span:nth-child(3){left:35%;width:7px;height:7px;animation-duration:8s;animation-delay:3.1s;}
+.tembers span:nth-child(4){left:44%;width:4px;height:4px;animation-duration:12s;animation-delay:.6s;}
+.tembers span:nth-child(5){left:56%;width:6px;height:6px;animation-duration:9.6s;animation-delay:2.2s;}
+.tembers span:nth-child(6){left:65%;width:3px;height:3px;animation-duration:10.4s;animation-delay:4.3s;}
+.tembers span:nth-child(7){left:74%;width:8px;height:8px;animation-duration:7.6s;animation-delay:1.9s;}
+.tembers span:nth-child(8){left:85%;width:4px;height:4px;animation-duration:11.8s;animation-delay:5.1s;}
+.tembers span:nth-child(9){left:92%;width:5px;height:5px;animation-duration:8.8s;animation-delay:3.7s;}
+
+@keyframes ember{
+  0%   {transform:translate3d(0,0,0) scale(.6);opacity:0;}
+  10%  {opacity:.9;}
+  50%  {transform:translate3d(18px,-46vh,0) scale(1);opacity:.75;}
+  100% {transform:translate3d(-12px,-96vh,0) scale(.4);opacity:0;}
+}
+@media (prefers-reduced-motion:reduce){
+  .tembers{display:none;}
+  .tglow,.tprompt{animation:none;}
+}
+
+/* ── glassmorphic modal ─────────────────────────────────────
+   Translucent rather than opaque, so the sunset behind it stays readable
+   as depth. The saturate() is what stops a heavy blur going grey. */
+#modal{
+  background:radial-gradient(120% 100% at 50% 50%,rgba(20,10,8,.62),rgba(6,5,8,.86));
+  backdrop-filter:blur(18px) saturate(125%);
+  -webkit-backdrop-filter:blur(18px) saturate(125%);
+}
+/* The blur lives on #modal and never here as well. Nesting backdrop-filter
+   inside another backdrop-filter drops the panel entirely on compositors
+   that fall back to software, and a panel that vanishes is a far worse bug
+   than a panel that is merely less glassy. The alphas below stay legible
+   with no blur at all, so the glass is an enhancement, not a dependency. */
+.mbox{
+  background:linear-gradient(160deg,rgba(58,43,39,.86),rgba(14,10,11,.93));
+  border:1px solid rgba(237,227,210,.16);border-radius:12px;
+  box-shadow:
+    0 40px 110px rgba(0,0,0,.62),
+    0 0 0 1px rgba(226,97,43,.10),
+    inset 0 1px 0 rgba(255,255,255,.09),
+    inset 0 -1px 0 rgba(0,0,0,.35);
+}
+.mbox header{
+  background:linear-gradient(180deg,rgba(46,32,30,.94),rgba(26,18,18,.80));
+  border-bottom:1px solid rgba(237,227,210,.12);
+  border-radius:12px 12px 0 0;
+}
+.mbox h3{text-shadow:0 0 20px rgba(255,180,84,.40);}
+#mclose{border-color:rgba(237,227,210,.20);background:rgba(255,255,255,.04);}
+#mclose:hover{background:rgba(255,255,255,.10);text-shadow:0 0 12px rgba(255,180,84,.6);}
+.srow{border-bottom:1px solid rgba(237,227,210,.10);}
+.ctbl td{border-bottom:1px solid rgba(237,227,210,.08);}
+.ctbl th{border-bottom:1px solid rgba(237,227,210,.16);}
+.ctbl kbd,.mnote kbd,.tprompt kbd{
+  border-color:rgba(237,227,210,.22);background:rgba(255,255,255,.05);
+}
+.sw{background:rgba(255,255,255,.05);border-color:rgba(237,227,210,.18);}
+.seg{border-color:rgba(237,227,210,.18);}
+.seg button{border-right-color:rgba(237,227,210,.14);}
+
+/* ── sliders ────────────────────────────────────────────────
+   The filled part of the track is painted by a gradient whose stop is set
+   from script (--pct), because a range input gives you no ::before to
+   size and no way to query the thumb position in CSS. */
+.sld{display:flex;align-items:center;gap:12px;flex:0 0 auto;}
+.sld var{
+  font-family:var(--mono);font-style:normal;font-size:10px;
+  color:var(--ember-hot);min-width:26px;text-align:right;
+  text-shadow:0 0 12px rgba(255,180,84,.45);
+}
+.sld input[type=range]{
+  -webkit-appearance:none;appearance:none;
+  width:150px;height:4px;border-radius:3px;outline:none;cursor:pointer;
+  background:linear-gradient(90deg,
+    var(--ember) 0,var(--ember-hot) var(--pct,50%),
+    rgba(237,227,210,.16) var(--pct,50%),rgba(237,227,210,.16) 100%);
+}
+.sld input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;
+  width:14px;height:14px;border-radius:50%;
+  background:var(--bone);border:2px solid var(--ember);
+  box-shadow:0 0 12px rgba(255,180,84,.65);
+  transition:transform .14s;
+}
+.sld input[type=range]::-moz-range-thumb{
+  width:14px;height:14px;border-radius:50%;border:2px solid var(--ember);
+  background:var(--bone);box-shadow:0 0 12px rgba(255,180,84,.65);
+}
+.sld input[type=range]:hover::-webkit-slider-thumb{transform:scale(1.18);}
+.sld input[type=range]:focus-visible::-webkit-slider-thumb{transform:scale(1.18);}
+
+/* ── key remapping ────────────────────────────────────────── */
+.knote{margin:0 0 16px;}
+.ktbl{width:100%;border-collapse:collapse;font-family:var(--hud);font-size:12.5px;}
+.ktbl th{
+  text-align:left;padding:0 10px 9px;font-weight:700;font-size:9px;
+  letter-spacing:.22em;color:var(--text-2);border-bottom:1px solid var(--metal);
+}
+.ktbl td{padding:6px 10px;border-bottom:1px solid rgba(237,227,210,.08);color:var(--text-1);}
+.ktbl td:first-child{color:var(--text-2);letter-spacing:.06em;width:34%;}
+.kbtn{
+  cursor:pointer;min-width:84px;
+  font-family:var(--mono);font-size:10px;letter-spacing:.10em;
+  padding:5px 10px;border-radius:3px;
+  border:1px solid var(--metal);background:var(--glass);color:var(--text-1);
+  transition:border-color .15s,color .15s,background .15s;
+}
+.kbtn:hover{border-color:var(--amber);color:var(--amber);}
+.kbtn.listening{
+  border-color:var(--amber);color:#0A0A10;background:var(--amber);
+  animation:kListen .9s ease-in-out infinite;
+}
+.kbtn.clash{border-color:var(--crimson);color:var(--crimson);}
+@keyframes kListen{0%,100%{opacity:1;}50%{opacity:.55;}}
+.krow{display:flex;justify-content:flex-end;margin-top:16px;}
+
+/* ── help pane ─
+─────────────────────────────────────────────── */
+.hgrid{display:grid;grid-template-columns:1fr 1fr;gap:26px;}
+.hgrid h4,.hsep{
+  margin:0 0 12px;font-family:var(--tech);font-weight:700;
+  font-size:10px;letter-spacing:.28em;color:var(--ember-hot);
+  text-shadow:0 0 16px rgba(255,180,84,.35);
+}
+.hsep{margin:24px 0 12px;padding-top:18px;border-top:1px solid rgba(237,227,210,.12);}
+.movelist{margin:0;}
+.movelist dt{
+  font-family:var(--ui);font-weight:700;font-size:12px;letter-spacing:.14em;
+  color:var(--bone);margin-top:14px;
+}
+.movelist dt:first-child{margin-top:0;}
+.movelist dt em{
+  font-style:normal;font-family:var(--mono);font-size:9px;
+  letter-spacing:.10em;color:var(--dust);margin-left:8px;
+}
+.movelist dd{
+  margin:4px 0 0;font-family:var(--ui);font-size:12px;line-height:1.6;color:var(--dust);
+}
+.tips{margin:0;padding-left:18px;}
+.tips li{
+  font-family:var(--ui);font-size:12.5px;line-height:1.7;color:var(--dust);
+  margin-bottom:7px;
+}
+.tips li::marker{color:var(--ember);}
+.tips b{color:var(--bone);font-weight:700;}
+
+/* ── results ────────────────────────────────────────────────
+   Same glass language as the modal, and the same rule: the panel is
+   legible on its own, the blur behind it is a bonus. */
+#results{
+  position:absolute;inset:0;z-index:7;display:none;place-items:center;
+  background:radial-gradient(120% 100% at 50% 40%,rgba(18,9,8,.72),rgba(5,4,6,.93));
+  backdrop-filter:blur(14px) saturate(120%);-webkit-backdrop-filter:blur(14px) saturate(120%);
+}
+body.results #results{display:grid;}
+.rbox{
+  width:min(620px,92vw);padding:30px 34px 28px;text-align:center;
+  background:linear-gradient(160deg,rgba(58,43,39,.88),rgba(14,10,11,.94));
+  border:1px solid rgba(237,227,210,.16);border-radius:12px;
+  box-shadow:0 40px 110px rgba(0,0,0,.66),inset 0 1px 0 rgba(255,255,255,.09);
+  animation:rIn .5s cubic-bezier(.16,1.3,.3,1) both;
+}
+@keyframes rIn{
+  0%{transform:scale(.86) translateY(16px);opacity:0;}
+  100%{transform:scale(1) translateY(0);opacity:1;}
+}
+.rverdict{
+  font-family:var(--tech);font-weight:900;font-size:10px;
+  letter-spacing:.42em;text-indent:.42em;color:var(--ember-hot);
+  text-shadow:0 0 20px rgba(255,180,84,.55);
+}
+#results h2{
+  margin:8px 0 2px;font-family:var(--logo);font-weight:900;
+  font-size:clamp(26px,4.6vw,48px);line-height:1.05;letter-spacing:.04em;
+  background:linear-gradient(178deg,#FFF6E6 10%,#F0C24B 50%,#E2612B 82%);
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+  filter:drop-shadow(0 3px 0 rgba(0,0,0,.5)) drop-shadow(0 0 30px rgba(226,97,43,.35));
+}
+.rsub{
+  font-family:var(--mono);font-size:9px;letter-spacing:.30em;color:var(--dust);
+  margin-bottom:22px;
+}
+.rscore{
+  display:flex;align-items:center;justify-content:center;gap:16px;
+  padding:14px 0 18px;border-top:1px solid rgba(237,227,210,.12);
+  border-bottom:1px solid rgba(237,227,210,.12);
+}
+.rside{display:flex;align-items:center;gap:12px;flex:1;justify-content:flex-end;}
+.rside.p2{justify-content:flex-start;}
+.rname{
+  font-family:var(--ui);font-weight:700;font-size:12px;letter-spacing:.16em;
+  color:var(--bone);
+}
+.rrounds{
+  font-family:var(--num);font-weight:700;font-size:40px;line-height:.8;
+  color:var(--ember-hot);font-variant-numeric:tabular-nums;
+  text-shadow:0 0 26px rgba(255,180,84,.45);
+}
+.rdash{font-family:var(--num);font-size:26px;color:var(--smoke);}
+.rside.won .rname{color:var(--ember-hot);text-shadow:0 0 18px rgba(255,180,84,.45);}
+.rside:not(.won) .rrounds{color:var(--dust);text-shadow:none;opacity:.65;}
+.rstats{margin:18px 0 24px;}
+.rstats div{
+  display:grid;grid-template-columns:1fr auto 1fr;align-items:baseline;
+  gap:14px;padding:7px 0;
+}
+.rstats dt{
+  grid-column:2;font-family:var(--mono);font-size:8.5px;letter-spacing:.24em;
+  color:var(--dust);white-space:nowrap;
+}
+.rstats dd{
+  margin:0;font-family:var(--num);font-weight:600;font-size:19px;
+  color:var(--bone);font-variant-numeric:tabular-nums;
+}
+.rstats dd:first-of-type{grid-column:1;text-align:right;}
+.rstats dd:last-of-type{grid-column:3;text-align:left;}
+.rrow{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
+.rrow .tbtn{padding:12px 22px;font-size:11px;letter-spacing:.20em;}
+
+@media (max-width:560px){
+  .rscore{gap:8px;}
+  .rrounds{font-size:30px;}
+  .rrow{flex-direction:column;}
+}
+
+/* ── quit overlay ───────────────────────────────────────────── */
+
+#bye{
+  position:absolute;inset:0;z-index:9;display:none;place-items:center;text-align:center;
+  background:radial-gradient(120% 100% at 50% 45%,rgba(20,10,8,.80),rgba(4,3,5,.97));
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+}
+body.bye #bye{display:grid;}
+#bye h2{
+  margin:0 0 10px;font-family:var(--logo);font-weight:900;
+  font-size:clamp(22px,4.4vw,46px);letter-spacing:.10em;color:var(--bone);
+  background:linear-gradient(178deg,#FFF6E6,#F0C24B 55%,#E2612B);
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+  filter:drop-shadow(0 0 30px rgba(226,97,43,.40));
+}
+#bye p{
+  margin:0 0 26px;font-family:var(--mono);font-size:10px;
+  letter-spacing:.26em;color:var(--dust);
+}
+#bye .tbtn{min-width:min(280px,72vw);}
+
+@media (max-width:640px){
+  .hgrid{grid-template-columns:1fr;gap:20px;}
+  .sld input[type=range]{width:min(200px,52vw);}
+}
+
+@media (max-width:620px){
+  #keys{display:none;}
+  .chips{grid-template-columns:1fr;}
+}
