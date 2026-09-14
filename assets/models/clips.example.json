@@ -1,0 +1,54 @@
+{
+  "_readme": [
+    "Rename this file to clips.json to activate it. With no clips.json present",
+    "the game loads exactly as before, so this file is safe to leave here.",
+    "",
+    "A rigging service returns ONE animation baked into ONE GLB, so a full move",
+    "set arrives as several files rather than one file with several clips. This",
+    "maps those files onto the game's states. The FILENAME decides the slot, so",
+    "these never go through the clip-name matching table.",
+    "",
+    "Keys are the character basenames from ASSETS.fighters / ASSETS.assists:",
+    "  p1 p2 p3 p4   the four fighters",
+    "  s1 s2         the two summons",
+    "",
+    "Per character, both fields are optional:",
+    "  model   a rigged replacement for that character's mesh. Tried BEFORE",
+    "          the authored pN.fbx, so the rigged output becomes the fighter.",
+    "  clips   slot -> file. Valid slots: IDLE WALK JUMP PUNCH KICK BLOCK",
+    "          HITSTUN KO",
+    "",
+    "Partial sets are fine and expected. A state with no clip stays on the",
+    "procedural bone driver, so buying two clips gives you those two and leaves",
+    "everything else animating as it does today.",
+    "",
+    "Values are resolved against assets/models/ unless they contain a slash or",
+    "start with http, so a remote URL works too.",
+    "",
+    "Clips are retargeted by bone name before binding: a clip authored against",
+    "'Hips' or 'arm_r' will still drive a model whose bones are called",
+    "'mixamorigHips' and 'mixamorigRightArm'. A clip that matches too little of",
+    "the skeleton is REJECTED rather than bound silently, and the dev panel (H)",
+    "reports it as 'N unbindable' — check the MODELS row after loading."
+  ],
+
+  "p1": {
+    "model": "p1_rigged.glb",
+    "clips": {
+      "IDLE":    "p1_idle.glb",
+      "WALK":    "p1_walk.glb",
+      "PUNCH":   "p1_punch.glb",
+      "KICK":    "p1_slash.glb",
+      "BLOCK":   "p1_block.glb",
+      "HITSTUN": "p1_hit.glb",
+      "KO":      "p1_dead.glb"
+    }
+  },
+
+  "s2": {
+    "clips": {
+      "IDLE":  "s2_idle.glb",
+      "KICK":  "s2_slam.glb"
+    }
+  }
+}

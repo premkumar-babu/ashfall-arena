@@ -1,0 +1,232 @@
+{
+  "version": 1,
+  "generator": "web/scripts/build-assets.mjs",
+  "models": {
+    "assets/models/x1.glb": {
+      "url": "assets/opt/models/x1.glb",
+      "bytes": 606776,
+      "sourceBytes": 2930032,
+      "draco": true,
+      "ktx2": 0
+    },
+    "assets/models/x2.glb": {
+      "url": "assets/opt/models/x2.glb",
+      "bytes": 1022012,
+      "sourceBytes": 3276888,
+      "draco": true,
+      "ktx2": 4
+    },
+    "assets/models/x3.glb": {
+      "url": "assets/opt/models/x3.glb",
+      "bytes": 227292,
+      "sourceBytes": 463988,
+      "draco": true,
+      "ktx2": 0
+    },
+    "assets/models/x4.glb": {
+      "url": "assets/opt/models/x4.glb",
+      "bytes": 743048,
+      "sourceBytes": 2160468,
+      "draco": true,
+      "ktx2": 2
+    },
+    "assets/models/k1.glb": {
+      "url": "assets/opt/models/k1.glb",
+      "bytes": 78048,
+      "sourceBytes": 341688,
+      "draco": true,
+      "ktx2": 1
+    },
+    "assets/models/k2.glb": {
+      "url": "assets/opt/models/k2.glb",
+      "bytes": 90404,
+      "sourceBytes": 381432,
+      "draco": true,
+      "ktx2": 1
+    },
+    "assets/models/k3.glb": {
+      "url": "assets/opt/models/k3.glb",
+      "bytes": 85752,
+      "sourceBytes": 386648,
+      "draco": true,
+      "ktx2": 1
+    },
+    "assets/models/k4.glb": {
+      "url": "assets/opt/models/k4.glb",
+      "bytes": 84244,
+      "sourceBytes": 352472,
+      "draco": true,
+      "ktx2": 1
+    },
+    "assets/models/ks1.glb": {
+      "url": "assets/opt/models/ks1.glb",
+      "bytes": 95652,
+      "sourceBytes": 484712,
+      "draco": true,
+      "ktx2": 1
+    },
+    "assets/models/ks2.glb": {
+      "url": "assets/opt/models/ks2.glb",
+      "bytes": 90388,
+      "sourceBytes": 409188,
+      "draco": true,
+      "ktx2": 1
+    },
+    "assets/models/p1.glb": {
+      "url": "assets/opt/models/p1.glb",
+      "bytes": 743048,
+      "sourceBytes": 2160468,
+      "draco": true,
+      "ktx2": 2
+    },
+    "assets/anim/Rig_Medium_General.glb": {
+      "url": "assets/opt/anim/Rig_Medium_General.glb",
+      "bytes": 378252,
+      "sourceBytes": 828240,
+      "draco": true,
+      "ktx2": 0
+    },
+    "assets/anim/Rig_Medium_MovementBasic.glb": {
+      "url": "assets/opt/anim/Rig_Medium_MovementBasic.glb",
+      "bytes": 300192,
+      "sourceBytes": 689624,
+      "draco": true,
+      "ktx2": 0
+    },
+    "assets/anim/Rig_Medium_CombatMelee.glb": {
+      "url": "assets/opt/anim/Rig_Medium_CombatMelee.glb",
+      "bytes": 540592,
+      "sourceBytes": 999416,
+      "draco": true,
+      "ktx2": 0
+    }
+  },
+  "textures": {
+    "assets/textures/stone_tile.jpg": {
+      "url": "assets/opt/textures/stone_tile.ktx2",
+      "bytes": 50250,
+      "sourceBytes": 38336,
+      "kind": "colour",
+      "size": "512×512"
+    },
+    "assets/textures/slate_diff.jpg": {
+      "url": "assets/opt/textures/slate_diff.ktx2",
+      "bytes": 183180,
+      "sourceBytes": 607643,
+      "kind": "colour",
+      "size": "1024×1024"
+    },
+    "assets/textures/slate_nor.jpg": {
+      "url": "assets/opt/textures/slate_nor.ktx2",
+      "bytes": 453033,
+      "sourceBytes": 341130,
+      "kind": "normal",
+      "size": "1024×1024"
+    },
+    "assets/textures/slate_rough.jpg": {
+      "url": "assets/opt/textures/slate_rough.ktx2",
+      "bytes": 141808,
+      "sourceBytes": 491749,
+      "kind": "data",
+      "size": "1024×1024"
+    },
+    "assets/textures/timber.jpg": {
+      "url": "assets/opt/textures/timber.ktx2",
+      "bytes": 61494,
+      "sourceBytes": 59067,
+      "kind": "colour",
+      "size": "512×512"
+    },
+    "assets/textures/rock.jpg": {
+      "url": "assets/opt/textures/rock.ktx2",
+      "bytes": 49068,
+      "sourceBytes": 26868,
+      "kind": "colour",
+      "size": "512×512"
+    },
+    "assets/textures/brick.jpg": {
+      "url": "assets/opt/textures/brick.ktx2",
+      "bytes": 43090,
+      "sourceBytes": 33203,
+      "kind": "colour",
+      "size": "512×512"
+    },
+    "assets/vfx/big_hit_6x5.png": {
+      "url": "assets/opt/vfx/big_hit_6x5.ktx2",
+      "bytes": 137132,
+      "sourceBytes": 128799,
+      "kind": "colour",
+      "size": "2048×2048"
+    },
+    "assets/vfx/fire_ring_6x5.png": {
+      "url": "assets/opt/vfx/fire_ring_6x5.ktx2",
+      "bytes": 487843,
+      "sourceBytes": 64706,
+      "kind": "colour",
+      "size": "2048×2048"
+    },
+    "assets/vfx/charge_7x6.png": {
+      "url": "assets/opt/vfx/charge_7x6.ktx2",
+      "bytes": 129592,
+      "sourceBytes": 100940,
+      "kind": "colour",
+      "size": "2048×2048"
+    },
+    "assets/vfx/impact_white_6x4.png": {
+      "url": "assets/opt/vfx/impact_white_6x4.ktx2",
+      "bytes": 81329,
+      "sourceBytes": 36390,
+      "kind": "colour",
+      "size": "2048×2048"
+    },
+    "assets/vfx/electric_ring_6x5.png": {
+      "url": "assets/opt/vfx/electric_ring_6x5.ktx2",
+      "bytes": 300330,
+      "sourceBytes": 29128,
+      "kind": "colour",
+      "size": "2048×1024"
+    },
+    "assets/vfx/star_explosion_6x5.png": {
+      "url": "assets/opt/vfx/star_explosion_6x5.ktx2",
+      "bytes": 76777,
+      "sourceBytes": 254659,
+      "kind": "colour",
+      "size": "1024×512"
+    },
+    "assets/vfx/spark_05.png": {
+      "url": "assets/opt/vfx/spark_05.ktx2",
+      "bytes": 19954,
+      "sourceBytes": 44785,
+      "kind": "colour",
+      "size": "512×512"
+    },
+    "assets/vfx/slash_02.png": {
+      "url": "assets/opt/vfx/slash_02.ktx2",
+      "bytes": 11498,
+      "sourceBytes": 28122,
+      "kind": "colour",
+      "size": "512×512"
+    },
+    "assets/vfx/circle_05.png": {
+      "url": "assets/opt/vfx/circle_05.ktx2",
+      "bytes": 16618,
+      "sourceBytes": 27583,
+      "kind": "colour",
+      "size": "512×512"
+    },
+    "assets/vfx/light_01.png": {
+      "url": "assets/opt/vfx/light_01.ktx2",
+      "bytes": 27798,
+      "sourceBytes": 60764,
+      "kind": "colour",
+      "size": "512×512"
+    }
+  },
+  "props": {
+    "assets/props/courtyard-props.glb": {
+      "url": "assets/opt/props/courtyard-props.glb",
+      "bytes": 28896,
+      "meshes": 14
+    }
+  }
+}

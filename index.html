@@ -1,0 +1,491 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#07070B">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Ashfall Arena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;900&family=Cinzel+Decorative:wght@700;900&family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;500&family=Teko:wght@500;600;700&family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&family=Bebas+Neue&family=Russo+One&display=swap">
+  <script type="module" crossorigin src="./assets/index-BqQAr3Gd.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-CUQIRQ43.css">
+</head>
+<body>
+<div id="game">
+  <div id="stage"></div>
+  <div id="veil"></div>
+
+  <div id="hud">
+    <div class="status">
+      <div class="fighter-block p1" id="fb0">
+        <div class="nameplate"><span class="fname" id="fn0">CINDERWARD</span><span class="tag">P1</span></div>
+        <div class="bar"><i class="chip" id="chip1"></i><i class="hp" id="hp1"></i></div>
+        <div class="gauges">
+          <div class="gauge assist" id="ga0"><i id="gaf0"></i><span class="sheen"></span><b>ASSIST</b></div>
+          <div class="gauge super" id="gs0"><i id="gsf0"></i><span class="sheen"></span><b>SUPER</b></div>
+        </div>
+        <div class="meta">
+          <div class="stocks" id="st1"><span></span><span></span></div>
+          <span class="pill" id="ps1">IDLE</span>
+          <span class="pill" id="pm1">ASSIST READY</span>
+        </div>
+      </div>
+
+      <div class="timer"><span id="clock">99</span><small id="roundlbl">ROUND 01</small></div>
+
+      <div class="fighter-block p2" id="fb1">
+        <div class="nameplate"><span class="fname" id="fn1">PALE VIGIL</span><span class="tag" id="tag1">CPU</span></div>
+        <div class="bar"><i class="chip" id="chip2"></i><i class="hp" id="hp2"></i></div>
+        <div class="gauges">
+          <div class="gauge assist" id="ga1"><i id="gaf1"></i><span class="sheen"></span><b>ASSIST</b></div>
+          <div class="gauge super" id="gs1"><i id="gsf1"></i><span class="sheen"></span><b>SUPER</b></div>
+        </div>
+        <div class="meta">
+          <div class="stocks" id="st2"><span></span><span></span></div>
+          <span class="pill" id="ps2">IDLE</span>
+          <span class="pill" id="pm2">ASSIST READY</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="rig">
+      <h2>CAMERA RIG</h2>
+      <div class="row"><b>MIDPOINT&nbsp;X</b><var id="t-mid">0.00</var></div>
+      <div class="row"><b>SEPARATION</b><var id="t-sep">0.00</var></div>
+      <div class="row"><b>RIG&nbsp;Z</b><var id="t-z">0.00</var></div>
+      <div class="track">
+        <div class="caps"><span>MIN 7.6</span><span>DOLLY</span><span>MAX 21.0</span></div>
+        <div class="rail"><i id="railfill"></i><u id="railmark"></u></div>
+      </div>
+
+      <h2 class="second">FRAME DATA</h2>
+      <div class="row"><b>ACTIVE&nbsp;HITBOX</b><var id="t-hb">none</var></div>
+      <div class="row"><b>LAST&nbsp;TRADE</b><var id="t-trade">&mdash;</var></div>
+      <div class="row"><b>HIT&nbsp;STOP</b><var id="t-stop">0 ms</var></div>
+      <div class="row"><b>BOX&nbsp;OVERLAY</b><var id="t-dbg">OFF</var></div>
+      <div class="row"><b>POST&nbsp;FX</b><var id="t-post">&mdash;</var></div>
+      <div class="row"><b>MODELS</b><var id="t-models">loading&hellip;</var></div>
+      <div class="row"><b>ART</b><var id="t-art">&mdash;</var></div>
+      <div class="row"><b>STAGE</b><var id="t-stage">&mdash;</var></div>
+      <div class="row"><b>OPPONENT</b><var id="t-bot">CPU</var></div>
+      <div class="row"><b>BOT&nbsp;STATE</b><var id="t-botstate">&mdash;</var></div>
+      <div class="row"><b>MUSIC</b><var id="t-music">off</var></div>
+
+      <h2 class="second">SUMMONS</h2>
+      <div class="row"><b>P1&nbsp;ASSIST</b><var id="t-a1">DORMANT</var></div>
+      <div class="row"><b>P2&nbsp;ASSIST</b><var id="t-a2">DORMANT</var></div>
+      <div class="row"><b>PARTICLES</b><var id="t-parts">0</var></div>
+      <div class="row"><b>FRAME&nbsp;&Delta;t</b><var id="t-dt">0.0 ms</var></div>
+    </div>
+
+    <div id="keys">
+      <div class="cols">
+        <div class="side a">
+          <h3 id="kn0">CINDERWARD</h3>
+          <div class="keyline"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move</div>
+          <div class="keyline"><kbd>A</kbd><kbd>A</kbd> / <kbd>D</kbd><kbd>D</kbd> dash</div>
+          <div class="keyline"><kbd>J</kbd> light <kbd>K</kbd> heavy</div>
+          <div class="keyline super"><kbd>L</kbd><kbd>R</kbd> assist <kbd>I</kbd> super</div>
+        </div>
+        <div class="side b">
+          <h3 id="kn1">PALE VIGIL</h3>
+          <div class="keyline"><kbd>&uarr;</kbd><kbd>&larr;</kbd><kbd>&darr;</kbd><kbd>&rarr;</kbd> move</div>
+          <div class="keyline"><kbd>&larr;</kbd><kbd>&larr;</kbd> / <kbd>&rarr;</kbd><kbd>&rarr;</kbd> dash</div>
+          <div class="keyline"><kbd>1</kbd> light <kbd>2</kbd> heavy</div>
+          <div class="keyline super"><kbd>3</kbd> assist <kbd>0</kbd> super</div>
+        </div>
+      </div>
+      <div class="syskey"><kbd>B</kbd> boxes <kbd>M</kbd> sound <span id="sndstate">off</span> <kbd>P</kbd> post fx <kbd>N</kbd> music <kbd>T</kbd> stage <kbd>Esc</kbd> pause</div>
+    </div>
+
+    <div class="combo p1" id="cb0"><span class="cnum">0</span><span class="clab">HIT COMBO</span></div>
+    <div class="combo p2" id="cb1"><span class="cnum">0</span><span class="clab">HIT COMBO</span></div>
+
+    <div id="call"><span></span></div>
+
+    <button id="hpause" class="hpause" type="button" aria-label="Pause" title="Pause (Esc)">
+      <svg viewBox="0 0 10 10" aria-hidden="true"><rect x="1" y="1" width="3" height="8" rx=".6"/><rect x="6" y="1" width="3" height="8" rx=".6"/></svg>PAUSE
+    </button>
+  </div>
+
+  <!-- ── boot ────────────────────────────────────────────────
+       Covers the title while the courtyard and cast download. It is a
+       curtain, not a gate: the scene is already rendering underneath and
+       the game stays playable if an asset never arrives, so this hides a
+       cold start rather than blocking on one. Clicking it lifts it. -->
+  <div id="boot">
+    <div class="orbs" aria-hidden="true"><i></i><i></i><i></i></div>
+    <div class="binner">
+      <div class="bmark">ASHFALL<em>ARENA</em></div>
+      <div class="btrack"><i id="bfill"></i></div>
+      <div class="brow">
+        <span id="bpct">0%</span>
+        <span id="bwhat">reaching for the cast</span>
+        <span id="bbytes"></span>
+      </div>
+      <ol class="bstages" id="bstages" aria-label="loading stages">
+        <li data-g="arena">ARENA</li>
+        <li data-g="surfaces">SURFACES</li>
+        <li data-g="fighters">FIGHTERS</li>
+        <li data-g="motion">MOTION</li>
+      </ol>
+      <div class="bhint">click to play while the rest streams in</div>
+    </div>
+  </div>
+
+  <!-- ── streaming ───────────────────────────────────────────
+       Whatever is still arriving after the curtain lifts. -->
+  <div id="stream" aria-hidden="true"><span class="strack"><i id="sfill"></i></span><span id="stext"></span></div>
+
+  <!-- ── title screen ────────────────────────────────────────
+
+       Two states on one overlay. `body.attract` shows the logo and a
+       single prompt; pressing anything promotes it to `body.titling`,
+       which reveals the menu. QUIT drops back to attract rather than
+       trying to close a tab the browser will not let us close. -->
+  <div id="title">
+    <div class="tinner">
+      <div class="orbs" aria-hidden="true"><i></i><i></i><i></i></div>
+
+      <!-- embers. Nine spans, each given its own delay and drift in CSS, so
+           the layer costs one element per particle and no script at all. -->
+      <div class="tembers" aria-hidden="true">
+        <span></span><span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span>
+      </div>
+
+      <div class="tmark">
+
+        <span class="tglow" aria-hidden="true">ASHFALL</span>
+        <h1>ASHFALL<em>ARENA</em></h1>
+        <div class="trule"><i></i><span>2.5D VERSUS COMBAT</span><i></i></div>
+      </div>
+
+      <div class="tprompt">PRESS <kbd>ENTER</kbd> TO BEGIN</div>
+
+      <nav class="tmenu">
+        <button id="mplay" class="tbtn primary beam">PLAY</button>
+        <button id="mctrl" class="tbtn">CONTROLS</button>
+        <button id="mset"  class="tbtn">SETTINGS</button>
+        <button id="mhelp" class="tbtn">HELP</button>
+        <button id="mquit" class="tbtn ghost">QUIT</button>
+      </nav>
+
+      <div class="tfoot"><span id="tcast">CLASSIC CAST</span> · <span id="tver">THREE.JS</span></div>
+    </div>
+  </div>
+
+  <!-- ── shared modal: CONTROLS and SETTINGS ─────────────────
+       One overlay, two panes, reachable from the title screen and from
+       the pause menu. Closing it returns you to whichever opened it. -->
+  <div id="modal">
+    <div class="mbox beam">
+      <header>
+        <h3 id="mtitle">CONTROLS</h3>
+        <button id="mclose" aria-label="Close">ESC</button>
+      </header>
+
+      <div class="mpane" id="pane-controls">
+        <table class="ctbl">
+          <thead><tr><th></th><th>PLAYER 1</th><th>PLAYER 2</th><th>GAMEPAD</th></tr></thead>
+          <tbody>
+            <tr><td>Move</td><td><kbd>A</kbd><kbd>D</kbd></td><td><kbd>&larr;</kbd><kbd>&rarr;</kbd></td><td>Stick / D-pad</td></tr>
+            <tr><td>Dash</td><td><kbd>L-Shift</kbd> or <kbd>AA</kbd><kbd>DD</kbd></td><td><kbd>R-Shift</kbd> or double-tap</td><td><kbd>LB</kbd> or double-tap</td></tr>
+            <tr><td>Jump</td><td><kbd>W</kbd></td><td><kbd>&uarr;</kbd></td><td><kbd>A</kbd> / up</td></tr>
+            <tr><td>Block</td><td><kbd>S</kbd></td><td><kbd>&darr;</kbd></td><td>Triggers / down</td></tr>
+            <tr><td>Light</td><td><kbd>J</kbd> &middot; left click</td><td><kbd>1</kbd></td><td><kbd>X</kbd></td></tr>
+            <tr><td>Heavy</td><td><kbd>K</kbd> &middot; right click</td><td><kbd>2</kbd></td><td><kbd>Y</kbd></td></tr>
+            <tr><td>Summon</td><td><kbd>L</kbd><kbd>R</kbd> &middot; middle click</td><td><kbd>3</kbd></td><td><kbd>B</kbd></td></tr>
+            <tr><td>Overdrive</td><td><kbd>I</kbd></td><td><kbd>0</kbd></td><td><kbd>RB</kbd></td></tr>
+          </tbody>
+        </table>
+        <p class="mnote">
+          Hold jump to jump higher; hold block in the air to fall faster. Presses are buffered,
+          so an attack pressed just before the last one ends still comes out.<br>
+          <kbd>Space</kbd> / <kbd>Start</kbd> locks in and starts &middot; <kbd>Esc</kbd> / <kbd>Start</kbd> pauses &middot;
+          <kbd>T</kbd> changes stage.
+          On a touch screen: stick on the left, buttons on the right.
+          Player 2 is CPU until you pick <b>2P VERSUS</b> on the select screen.
+        </p>
+      </div>
+
+      <div class="mpane" id="pane-settings" hidden>
+        <!-- Three pages instead of one long list. ← / → on a focused tab switches page. -->
+        <div class="stabs" role="tablist" aria-label="Settings sections">
+          <button class="stab on" type="button" role="tab" data-tab="audio" aria-selected="true">AUDIO</button>
+          <button class="stab" type="button" role="tab" data-tab="video" aria-selected="false" tabindex="-1">VIDEO</button>
+          <button class="stab" type="button" role="tab" data-tab="controls" aria-selected="false" tabindex="-1">CONTROLS</button>
+        </div>
+
+        <section class="spage" data-page="audio" role="tabpanel">
+          <div class="srow">
+            <div><b>MASTER VOLUME</b><small>Everything the game makes</small></div>
+            <div class="sld"><input type="range" id="volMaster" min="0" max="100" value="50" aria-label="Master volume"><var id="volMasterV">50</var></div>
+          </div>
+          <div class="srow">
+            <div><b>MUSIC VOLUME</b><small>The score, relative to master</small></div>
+            <div class="sld"><input type="range" id="volMusic" min="0" max="100" value="70" aria-label="Music volume"><var id="volMusicV">70</var></div>
+          </div>
+          <div class="srow">
+            <div><b>EFFECTS VOLUME</b><small>Hits, guards and the interface, relative to master</small></div>
+            <div class="sld"><input type="range" id="volSfx" min="0" max="100" value="100" aria-label="Effects volume"><var id="volSfxV">100</var></div>
+          </div>
+          <div class="srow">
+            <div><b>AMBIENCE VOLUME</b><small>Braziers, water and wind, placed around the courtyard</small></div>
+            <div class="sld"><input type="range" id="volAmb" min="0" max="100" value="60" aria-label="Ambience volume"><var id="volAmbV">60</var></div>
+          </div>
+          <div class="srow">
+            <div><b>SOUND</b><small>Mute everything at once (<kbd>M</kbd>)</small></div>
+            <button class="sw" id="swSfx" aria-pressed="false"><i></i><span>OFF</span></button>
+          </div>
+          <div class="srow">
+            <div><b>MUSIC</b><small>Streams a track, falls back to a synth bed (<kbd>N</kbd>)</small></div>
+            <button class="sw" id="swMusic" aria-pressed="false"><i></i><span>OFF</span></button>
+          </div>
+        </section>
+
+        <section class="spage" data-page="video" role="tabpanel" hidden>
+          <div class="srow">
+            <div><b>GRAPHICS QUALITY</b><small>Render scale, shadows, effects and scenery detail. AUTO fits the device and steps down if the frame rate drops</small></div>
+            <div class="seg" id="segQ">
+              <button data-q="auto">AUTO</button><button data-q="low">LOW</button><button data-q="med">MEDIUM</button><button data-q="high">HIGH</button>
+            </div>
+          </div>
+          <div class="srow">
+            <div><b>POST-PROCESSING</b><small>Bloom, grain, vignette, chromatic aberration (<kbd>P</kbd>)</small></div>
+            <button class="sw" id="swPost" aria-pressed="false"><i></i><span>OFF</span></button>
+          </div>
+          <div class="srow">
+            <div><b>BLOOM</b><small>The glow around bright pixels</small></div>
+            <button class="sw" id="swBloom" aria-pressed="true"><i></i><span>ON</span></button>
+          </div>
+          <div class="srow">
+            <div><b>SCREEN SHAKE</b><small>Camera kick on impact</small></div>
+            <button class="sw" id="swShake" aria-pressed="true"><i></i><span>ON</span></button>
+          </div>
+        </section>
+
+        <section class="spage" data-page="controls" role="tabpanel" hidden>
+          <div class="srow">
+            <div><b>KEY BINDINGS</b><small>Rebind every action for both players</small></div>
+            <button class="tbtn" id="openKeys" type="button" style="padding:9px 18px;font-size:10px;">REMAP KEYS</button>
+          </div>
+          <div class="srow">
+            <div><b>CONTROL REFERENCE</b><small>Keyboard, mouse, gamepad and touch at a glance</small></div>
+            <button class="tbtn" id="openCtrl" type="button" style="padding:9px 18px;font-size:10px;">VIEW CONTROLS</button>
+          </div>
+          <div class="srow">
+            <div><b>VIBRATION</b><small>Gamepad rumble and phone vibration on contact</small></div>
+            <button class="sw" id="swHaptic" aria-pressed="true"><i></i><span>ON</span></button>
+          </div>
+        </section>
+
+        <div class="sfoot">
+          <p class="mnote">Settings are remembered on this browser.</p>
+          <button class="tbtn ghost" id="sreset" type="button">RESET TO DEFAULTS</button>
+        </div>
+      </div>
+
+      <div class="mpane" id="pane-keys" hidden>
+        <p class="mnote knote">Click a key, then press the one you want. <kbd>Esc</kbd> cancels,
+          <kbd>Backspace</kbd> clears. A key already in use is swapped, not duplicated.</p>
+        <table class="ktbl">
+          <thead><tr><th>ACTION</th><th>PLAYER 1</th><th>PLAYER 2</th></tr></thead>
+          <tbody id="kbody"></tbody>
+        </table>
+        <div class="krow">
+          <button id="kreset" class="tbtn ghost">RESTORE DEFAULTS</button>
+        </div>
+      </div>
+
+      <div class="mpane" id="pane-help" hidden>
+
+        <div class="hgrid">
+          <section>
+            <h4>THE FOUR</h4>
+            <dl class="movelist">
+              <dt>CINDERWARD <em>Ember Knight</em></dt>
+              <dd>Straight sword, steady pressure. The baseline &mdash; every number
+                  average, nothing to work around. Learn the spacing here.</dd>
+              <dt>PALE VIGIL <em>Spectral Sentinel</em></dt>
+              <dd>Longest reach and a faster walk. Wins the poking game and loses
+                  the trade if you let anyone inside it.</dd>
+              <dt>BRONZEMAW <em>Verdigris Brute</em></dt>
+              <dd>Heaviest damage, slowest recovery. A whiffed heavy is a free
+                  punish for the other side, so make them come to you.</dd>
+              <dt>NOCTURNE <em>Violet Cutthroat</em></dt>
+              <dd>Quickest on the stage and the most fragile. Built for dash-ins
+                  and for leaving before the answer arrives.</dd>
+            </dl>
+          </section>
+
+          <section>
+            <h4>THE MOVES</h4>
+            <dl class="movelist">
+              <dt>LIGHT <em>7 dmg &middot; fast</em></dt>
+              <dd>Short startup, short recovery. Your check, and the link that
+                  starts most combos.</dd>
+              <dt>HEAVY <em>12 dmg &middot; launches</em></dt>
+              <dd>Slow enough to be seen coming. Big knockback, so it ends a
+                  combo rather than continuing one.</dd>
+              <dt>ASSIST <em>50% meter</em></dt>
+              <dd>Both deal 10. Emberwraith splits it: 6 on the leap, 4 on a cinder orb
+                  that flies on. The Carrion Idol lands all 10 in one slam whose shockwave
+                  travels the floor, later but harder to escape. Six-second lockout.</dd>
+              <dt>OVERDRIVE <em>100% meter</em></dt>
+              <dd>Eight seconds at double speed, trailing light. Spends the whole
+                  bar, so it is Overdrive <b>or</b> two assists, never both.</dd>
+            </dl>
+          </section>
+        </div>
+
+        <h4 class="hsep">COMBO TIPS</h4>
+        <ul class="tips">
+          <li><b>Light into heavy is the bread and butter.</b> Light recovers fast
+              enough that heavy connects before they can guard again.</li>
+          <li><b>Jump-ins carry your momentum.</b> Both attacks stay live in the
+              air and keep the speed you jumped with &mdash; dash, then jump, then
+              hit, and the whole thing lands as one.</li>
+          <li><b>Blocking breaks the attacker's combo.</b> Guarding cuts most of
+              the damage and kills the knockback, but only while you are facing
+              the blow. Turn your back and it is a clean hit.</li>
+          <li><b>Dash is a double-tap, and it has recovery.</b> Dashing past
+              someone turns you around; dashing into a heavy is how rounds end.</li>
+          <li><b>Meter builds on hits given and taken.</b> Losing a round is not
+              the worst thing that can happen to your bar.</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- QUIT. A browser tab cannot close itself unless script opened it, so
+       instead of failing silently this says goodbye and offers the way back. -->
+  <div id="bye">
+    <div>
+      <h2>THANKS FOR PLAYING</h2>
+      <p>The dock will still be here.</p>
+      <button id="byeback" class="tbtn primary beam">BACK TO THE ARENA</button>
+    </div>
+  </div>
+
+  <!-- ── results ─────────────────────────────────────────────
+       The flow used to drop straight from the winning blow back to the
+       select screen, which threw away the only moment the match has to
+       say what happened. -->
+  <div id="results">
+    <div class="rbox beam">
+      <div class="rverdict" id="rverdict">VICTORY</div>
+      <h2 id="rwinner">CINDERWARD</h2>
+      <div class="rsub" id="rsub">WINS THE SET</div>
+
+      <div class="rscore">
+        <div class="rside" id="rs0">
+          <span class="rname" id="rn0">CINDERWARD</span>
+          <span class="rrounds" id="rr0">0</span>
+        </div>
+        <span class="rdash">&ndash;</span>
+        <div class="rside p2" id="rs1">
+          <span class="rrounds" id="rr1">0</span>
+          <span class="rname" id="rn1">PALE VIGIL</span>
+        </div>
+      </div>
+
+      <dl class="rstats">
+        <div><dt>DAMAGE DEALT</dt><dd id="rd0">0</dd><dd id="rd1">0</dd></div>
+        <div><dt>BIGGEST COMBO</dt><dd id="rc0">0</dd><dd id="rc1">0</dd></div>
+        <div><dt>ROUNDS</dt><dd id="rq0">0</dd><dd id="rq1">0</dd></div>
+      </dl>
+
+      <div class="rrow">
+        <button id="ragain" class="tbtn primary beam">REMATCH</button>
+        <button id="rselect" class="tbtn">CHARACTER SELECT</button>
+        <button id="rmenu" class="tbtn ghost">MAIN MENU</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="pause">
+
+
+    <div>
+      <h2>PAUSED</h2>
+      <div class="pctx" id="pctx"></div>
+      <div class="phint">ESC TO RESUME &middot; &uarr; &darr; TO CHOOSE</div>
+      <div class="prow">
+        <button id="presume">RESUME</button>
+        <button id="prestart">RESTART MATCH</button>
+        <button id="pctrl">CONTROLS</button>
+        <button id="pset">SETTINGS</button>
+        <button id="phelp">HELP</button>
+        <button id="pquit" class="quit">QUIT TO SELECT</button>
+        <button id="pmenu" class="quit">MAIN MENU</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="select">
+    <div class="selside p1" id="ss0">
+      <div class="selhead">
+        <span class="seltag">PLAYER 1</span>
+        <span class="selpick" id="sp0">CINDERWARD</span>
+        <span class="selsub" id="sd0">Ember Knight</span>
+      </div>
+      <div class="stats" id="statbox0"></div>
+      <div class="grid" id="grid0"></div>
+      <div class="assistrow"><h4>ASSIST</h4><div class="chips" id="chips0"></div></div>
+      <div class="lockstate" id="lk0">PRESS <kbd>J</kbd> TO LOCK IN</div>
+    </div>
+
+    <div class="selcenter">
+      <h1><span class="tl">ASHFALL</span> <span class="tr">ARENA</span></h1>
+      <div class="rule"><i></i><em></em><i></i></div>
+      <div class="sub">CHOOSE YOUR FIGHTER</div>
+      <div class="vs">VS</div>
+    </div>
+
+    <div class="startwrap">
+      <div class="switchrow">
+        <div class="modeswitch">
+          <button id="m1p" class="on">1P vs CPU</button>
+          <button id="m2p">2P VERSUS</button>
+        </div>
+        <div class="modeswitch diffswitch" id="diffswitch">
+          <button data-diff="EASY">EASY</button>
+          <button data-diff="NORMAL" class="on">NORMAL</button>
+          <button data-diff="HARD">HARD</button>
+        </div>
+      </div>
+      <div class="themerow">
+        <span class="themelab">STAGE</span>
+        <div class="themepick" id="themepick"></div>
+        <span class="themetag" id="themetag"></span>
+        <span class="themelab castlab">CAST</span>
+        <div class="modeswitch castswitch" id="castswitch">
+          <button data-cast="compact">KAYKIT</button>
+          <button data-cast="classic">DEMO</button>
+          <button data-cast="authored">AUTHORED</button>
+        </div>
+      </div>
+      <button id="startbtn" class="beam">PRESS SPACE TO LOCK IN</button>
+      <p class="selhint" id="selhint">CLICK A CARD OR STEER WITH A / D</p>
+    </div>
+
+    <div class="selside p2" id="ss1">
+      <div class="selhead">
+        <span class="seltag">PLAYER 2</span>
+        <span class="selpick" id="sp1">PALE VIGIL</span>
+        <span class="selsub" id="sd1">Spectral Sentinel</span>
+      </div>
+      <div class="stats" id="statbox1"></div>
+      <div class="grid" id="grid1"></div>
+      <div class="assistrow"><h4>ASSIST</h4><div class="chips" id="chips1"></div></div>
+      <div class="lockstate" id="lk1">PRESS <kbd>1</kbd> TO LOCK IN</div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
