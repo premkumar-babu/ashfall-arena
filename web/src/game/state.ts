@@ -32,6 +32,8 @@ class GameState {
   phase: Phase = PHASE.TITLE;
   themeIndex: number = restoreThemeIndex();
   mode1P = true;
+  /** RUSH: the movement-only mode, where the only weapon is your own momentum (game/rush.ts). */
+  rush = false;
   difficulty: Difficulty = 'NORMAL';
   postOn = false;
 

@@ -1860,3 +1860,16 @@ body.bye #bye{display:grid;}
   #keys{display:none;}
   .chips{grid-template-columns:1fr;}
 }
+
+/* ── RUSH ───────────────────────────────────────────────────────────────
+   The movement-only mode has no health, no meters and no clock: the only
+   score is ring-outs, which the stocks already show. Hiding the duel's
+   furniture keeps one HUD serving both modes instead of forking it. */
+body.rush #hud .bar,
+body.rush #hud .gauges,
+body.rush #pm1,
+body.rush #pm2,
+body.rush #clock,
+body.rush #chips0,
+body.rush #chips1 { display: none; }
+body.rush .timer { min-width: 0; }

@@ -141,3 +141,9 @@
 body.touch #keys {
   display: none;
 }
+
+/* RUSH has no attacks, so the touch pad is movement, jump and dash only. */
+body.rush .tc-punch,
+body.rush .tc-kick,
+body.rush .tc-assist,
+body.rush .tc-power { display: none; }

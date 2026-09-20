@@ -273,6 +273,31 @@ function applyFightFov(dt: number): void {
   }
 }
 
+/*
+  Camera angles. The rig decides the framing — how far back and how high, so
+  both fighters stay on screen whatever the stage is doing. A view only says
+  where to stand relative to that framing, which is why every angle keeps the
+  fit. SIDE is the original and is deliberately identity. Cycled with C.
+*/
+export const CAM_VIEWS = [
+  { name: 'SIDE', yaw: 0, zoom: 1, height: 1, lookY: 0 },
+  { name: 'WIDE', yaw: 0, zoom: 1.34, height: 1.3, lookY: 0.15 },
+  { name: 'LOW', yaw: 0.06, zoom: 0.94, height: 0.4, lookY: -0.3 },
+  { name: 'ANGLED', yaw: -0.36, zoom: 1.12, height: 1.12, lookY: 0.05 },
+  { name: 'SWEEP', yaw: 0.42, zoom: 1.06, height: 0.8, lookY: 0 },
+] as const;
+
+let viewIndex = 0;
+
+export function cycleCamView(): string {
+  viewIndex = (viewIndex + 1) % CAM_VIEWS.length;
+  return CAM_VIEWS[viewIndex]!.name;
+}
+
+export function camViewName(): string {
+  return CAM_VIEWS[viewIndex]!.name;
+}
+
 export function updateCameraFight(dt: number): void {
   dampLights(LIGHTS.ambFight, LIGHTS.hemiFight, LIGHTS.keyFight, dt);
   applyFightFov(dt);
@@ -303,8 +328,19 @@ export function updateCameraFight(dt: number): void {
   rigState.look.x = springs.lookX.step(rigState.look.x, mid * 0.92 + leadX * 0.5, FRAMING.smoothLook, dt);
   rigState.look.y = springs.lookY.step(rigState.look.y, 1.66 + highest * 0.42, FRAMING.smoothLook, dt);
 
-  camera.position.copy(rigBase);
-  camera.lookAt(rigState.look);
+  const view = CAM_VIEWS[viewIndex]!;
+  if (view.yaw === 0 && view.zoom === 1 && view.height === 1) {
+    camera.position.copy(rigBase);
+    camera.lookAt(rigState.look);
+  } else {
+    // orbit the framing the rig already chose, around the point it is looking at
+    const dx = rigBase.x - rigState.look.x;
+    const dz = (rigBase.z - PLANE_Z) * view.zoom;
+    const c = Math.cos(view.yaw);
+    const s = Math.sin(view.yaw);
+    camera.position.set(rigState.look.x + dx * c - dz * s, rigBase.y * view.height, PLANE_Z + dx * s + dz * c);
+    camera.lookAt(rigState.look.x, rigState.look.y + view.lookY, PLANE_Z);
+  }
   camera.rotation.z += camRoll;                    // slight bank toward the swing
 
   /* Shake after aiming, so it translates the frame rather than orbiting the

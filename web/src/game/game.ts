@@ -16,10 +16,11 @@ import { stepKeyLegend, syncHud } from '../ui/hud';
 import { stepPadMenu } from '../ui/pad-menu';
 import { updateAmbience } from '../world/ambience';
 import { stepAssist } from './assist';
-import { botIntent } from './bot';
-import { resolveAssist, resolveCombat, settleKO, syncAssistBoxes, syncBoxes } from './collision';
+import { botIntent, keepBotOnStage } from './bot';
+import { checkRingOut, resolveAssist, resolveCombat, settleKO, syncAssistBoxes, syncBoxes } from './collision';
 import { stepState } from './fsm';
 import { endRound, match, stepCombo } from './match';
+import { resolveBodyCheck, rushBotIntent, stepRush, stripAttacks } from './rush';
 import { stepMeter } from './meter';
 import { planMotion, resolveMotion } from './movement';
 import { poseFighter, stageSelectPreview } from './pose';
@@ -76,7 +77,8 @@ export function simulate(dt: number): void {
     return;
   }
 
-  if (!match.over) {
+  // RUSH is not played against a clock: the round ends when someone goes off the edge
+  if (!match.over && !state.rush) {
     match.time = Math.max(0, match.time - dt);
     if (match.time === 0) {
       const lead = P1.hp === P2.hp ? null : P1.hp > P2.hp ? P1 : P2;
@@ -85,13 +87,18 @@ export function simulate(dt: number): void {
   }
 
   const i1 = controllers[0].intent();
-  const i2 = versus ? controllers[1].intent() : botIntent(P2, P1, dt);
+  const i2 = versus ? controllers[1].intent() : state.rush ? rushBotIntent(P2, P1) : botIntent(P2, P1, dt);
+  if (!versus) keepBotOnStage(P2, i2);             // the stage has no walls to stop a retreat any more
+  // RUSH has no attacks at all: silencing the intent silences every input device and the CPU at once
+  if (state.rush) { stripAttacks(i1); stripAttacks(i2); }
   stepKeyLegend(dt, i1.punchDown || i1.kickDown || i1.dash !== 0);
 
   stepState(P1, i1, dt);
   stepState(P2, i2, dt);
-  stepMeter(P1, i1, P2, dt);
-  stepMeter(P2, i2, P1, dt);
+  if (!state.rush) {
+    stepMeter(P1, i1, P2, dt);
+    stepMeter(P2, i2, P1, dt);
+  }
   controllers[0].acknowledge(i1);
   if (versus) controllers[1].acknowledge(i2);
   endInputStep();
@@ -102,11 +109,20 @@ export function simulate(dt: number): void {
   // velocities from the game's rules, then positions from the physics world
   planMotion(P1, i1, P2, dt);
   planMotion(P2, i2, P1, dt);
+  if (state.rush) {
+    // per-character movement kits, then body-to-body checks, before anything is moved
+    stepRush(P1, i1, dt);
+    stepRush(P2, i2, dt);
+    resolveBodyCheck(P1, P2, dt);
+  }
   resolveMotion(P1, P2, dt);
   if (physics) physics.step();
+  checkRingOut();                                  // the stage edge is a losing line, not a wall
 
-  stepAssist(P1.assist, P2, dt, t);
-  stepAssist(P2.assist, P1, dt, t);
+  if (!state.rush) {
+    stepAssist(P1.assist, P2, dt, t);
+    stepAssist(P2.assist, P1, dt, t);
+  }
 
   poseFighter(P1, dt, t);
   poseFighter(P2, dt, t);

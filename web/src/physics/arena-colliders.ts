@@ -1,7 +1,5 @@
 import RAPIER, { type ColliderDesc } from '@dimforge/rapier3d-compat';
-import { BOUND } from '../config/constants';
-import { CAPSULE } from './character';
-import { BOUNDS, SCENERY } from './groups';
+import { SCENERY } from './groups';
 import type { PhysicsWorld } from './world';
 
 /*
@@ -37,13 +35,8 @@ export function buildArenaColliders(pw: PhysicsWorld): void {
     add(RAPIER.ColliderDesc.cylinder(3.6, 0.26), px, 3.6, pz);
   }
 
-  /* The duel's bounds. The old movement code clamped the root at ±BOUND; these
-     walls stand one capsule radius further out, so the controller stops the
-     root at exactly the same place — but now a knockback slide into the wall
-     is a real contact, and the pushbox can no longer shove a cornered fighter
-     through it. Fighter-only (see groups.ts). */
-  const wallX = BOUND + CAPSULE.radius + CAPSULE.skin + 0.5;
-  for (const side of [-1, 1]) {
-    add(RAPIER.ColliderDesc.cuboid(0.5, 12, 4), side * wallX, 12, 0, BOUNDS);
-  }
+  /* No side walls. The duel used to be fenced in at ±BOUND so a cornered
+     fighter was held; playtesting asked for the opposite — a hard blow should
+     carry someone out of the arena entirely. The edge is now a losing line
+     (RINGOUT.x), checked in collision.ts, not a collider. */
 }

@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { BOUND, GRAVITY, GROUND, METER, MIN_GAP, MOVES, PLANE_Z, S } from '../config/constants';
+import { GRAVITY, GROUND, METER, MIN_GAP, MOVES, PLANE_Z, RINGOUT, S } from '../config/constants';
 import { MOVEMENT } from '../config/controls';
 import { Sfx } from '../audio/sfx';
 import { clamp, damp } from '../core/math';
@@ -141,7 +141,7 @@ const unbodied: MoveResult = { x: 0, y: GROUND, grounded: true, movedY: 0 };
 /** The pre-physics movement: a clamp and a floor. Used only if Rapier failed to load. */
 function integrateUnbodied(f: Fighter, dx: number, dy: number): MoveResult {
   const y = Math.max(GROUND, f.y + dy);
-  unbodied.x = clamp(f.x + dx, -BOUND, BOUND);
+  unbodied.x = clamp(f.x + dx, -RINGOUT.x - 1, RINGOUT.x + 1);
   unbodied.movedY = y - f.y;
   unbodied.y = y;
   unbodied.grounded = y <= GROUND;

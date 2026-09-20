@@ -2,7 +2,7 @@ import { REVISION } from 'three/webgpu';
 import { ASSETS } from '../assets/models';
 import { Music } from '../audio/music';
 import { Sfx } from '../audio/sfx';
-import { requestCamTween, stopCamTween } from '../camera/camera-rig';
+import { cycleCamView, requestCamTween, stopCamTween } from '../camera/camera-rig';
 import { PHASE } from '../config/constants';
 import type { Disposer } from '../core/disposal';
 import { queryFlag } from '../core/platform';
@@ -99,6 +99,16 @@ export function setPaused(on: boolean): void {
 
 function syncBotLabel(): void {
   devText('bot', state.mode1P ? `CPU ${state.difficulty}` : 'HUMAN');
+}
+
+/* RUSH is a different axis to 1P/2P: it changes what the match IS, not who
+   plays it, so it gets its own switch rather than a third player button. */
+function setRush(on: boolean): void {
+  state.rush = on;
+  maybeById('mrush')?.classList.toggle('on', on);
+  maybeById('mduel')?.classList.toggle('on', !on);
+  document.body.classList.toggle('rush', on);
+  updateSelectUI();                                // the cards describe movement in RUSH, titles in DUEL
 }
 
 function setMode(one: boolean): void {
@@ -476,6 +486,7 @@ function onGameKey(ev: KeyboardEvent): void {
       case 'KeyB': toggleDebug(); break;
       case 'KeyM': Sfx.toggle(); break;
       case 'KeyP': setPost(!post?.enabled); break;
+      case 'KeyC': announce('CAMERA · ' + cycleCamView(), 900, 'toast'); break;
       case 'KeyN': Music.toggle(); break;
       case 'KeyH':
         // developer overlays (frame data, CPU/GPU timings) are opt-in by URL, never a stray keypress
@@ -732,6 +743,8 @@ export function wireFrontEnd({ disposer, viewport, perf }: FrontEndContext): voi
   // select screen
   click('m1p', () => { Sfx.ui(); setMode(true); });
   click('m2p', () => { Sfx.ui(); setMode(false); });
+  click('mduel', () => { Sfx.ui(); setRush(false); });
+  click('mrush', () => { Sfx.ui(); setRush(true); });
   document.querySelectorAll<HTMLButtonElement>('#diffswitch button').forEach((b) => {
     disposer.listen(b, 'click', () => {
       Sfx.ui();

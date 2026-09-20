@@ -1,4 +1,4 @@
-import { A, BOT_STATE, METER, MIN_GAP, S } from '../config/constants';
+import { A, BOT_STATE, BOUND, METER, MIN_GAP, S } from '../config/constants';
 import type { Fighter } from './fighter';
 import { blankIntent, type Intent } from './intent';
 import { match } from './match';
@@ -53,6 +53,18 @@ export function setDifficulty(name: Difficulty): void {
 /** Only the CPU's own blows are scaled — the player's numbers never move, whatever the setting. */
 export function damageScale(att: Fighter): number {
   return state.mode1P && att === state.P2 ? BOT.damage : 1;
+}
+
+/* Ring-outs took the walls away, so the bot has to know the floor ends. Its
+   retreat used to be safe by definition — the wall caught it — and without
+   this it now backs off the edge and loses rounds to nobody. */
+const EDGE_SAFE = 9.6;
+
+export function keepBotOnStage(f: Fighter, i: Intent): void {
+  const own = Math.sign(f.x);
+  if (!own) return;
+  if (Math.abs(f.x) > EDGE_SAFE && Math.sign(i.move) === own) i.move = 0;
+  if (Math.abs(f.x) > BOUND - 0.7) i.move = -own;
 }
 
 export function botIntent(f: Fighter, foe: Fighter, dt: number): Intent {

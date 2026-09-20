@@ -15,6 +15,12 @@ export const GROUND = 0.0;
 export const ROUNDS_TO_WIN = 2;
 export const SPAWN_X = [-3.4, 3.4] as const;
 
+/* Ring-out. The stage has no side walls any more: a hard enough blow carries a
+   fighter past the flagstones and out of the fight. Knockback grows as the
+   victim's health falls (rage), so the last exchange of a round is the one that
+   can launch, and lift puts them in the air where they can still steer back. */
+export const RINGOUT = { x: 12.8, rage: 1.9, lift: 4.2 } as const;
+
 /* ── phases and state enums ───────────────────────────────────────────── */
 export const PHASE = { TITLE: 'TITLE', SELECT: 'SELECT', FIGHT: 'FIGHT' } as const;
 export type Phase = (typeof PHASE)[keyof typeof PHASE];
@@ -50,8 +56,8 @@ export type BotState = (typeof BOT_STATE)[keyof typeof BOT_STATE];
    with the shorter KayKit cast the fight read too close, the fighters
    crowding the frame and the stage lost behind them. */
 export const RIG = {
-  zMin: 9.8, zMax: 22, zBase: 9.6, zPerGap: 0.94,
-  yBase: 2.75, yPerGap: 0.085, xPull: 0.88,
+  zMin: 11.6, zMax: 25, zBase: 11.4, zPerGap: 1.08,
+  yBase: 2.95, yPerGap: 0.085, xPull: 0.88,
   lambdaX: 4.2, lambdaZ: 3.0, lambdaY: 3.4, lambdaLook: 5.0,
 } as const;
 

@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { A, FLASH_FRAMES, METER, MOVES, PAL, PLANE_Z, S } from '../config/constants';
+import { A, BOUND, FLASH_FRAMES, METER, MOVES, PAL, PLANE_Z, RINGOUT, S } from '../config/constants';
 import { Sfx } from '../audio/sfx';
 import { clamp } from '../core/math';
 import { Flip } from '../fx/flipbook';
@@ -149,7 +149,18 @@ export function landHit(def: Fighter, o: HitOptions): boolean {
     }
     match.lastTrade = `${o.label} → BLOCKED`;
   } else {
-    def.vx = o.dir * o.knockback;
+    /* Knockback grows as the victim weakens, so the closing blows of a round
+       are the ones that can carry someone off the stage. A heavy hit on a hurt
+       fighter also lifts them: airborne they travel, and can steer back. */
+    const rage = 1 + (1 - clamp(def.hp, 0, 100) / 100) * RINGOUT.rage;
+    def.vx = o.dir * o.knockback * rage;
+    /* The lift exists to turn a blow near the edge into a ring-out. Applied
+       everywhere it also popped any hurt fighter off the ground mid-stage,
+       which quietly ended combos for the second half of every round, so it is
+       scoped to the outer thirds of the stage where it has something to do. */
+    if (o.damage >= 10 && rage > 1.5 && Math.abs(def.x) > BOUND * 0.55) {
+      def.vy = Math.max(def.vy, RINGOUT.lift * (rage - 1));
+    }
     def.flash = 1;
     def.white = FLASH_FRAMES;          // blown-out white for the freeze + 2 frames
     applyFlash(def);                   // apply now: the freeze renders before the next pose
@@ -197,7 +208,7 @@ export function landHit(def: Fighter, o: HitOptions): boolean {
      awarded the win to whichever hitbox happened to be tested first.
      settleKO() runs once both fighters have been resolved. */
   if (def.hp <= 0) {
-    def.vx = o.dir * o.knockback * 0.8;
+    def.vx = o.dir * o.knockback * 0.8 * (1 + RINGOUT.rage);
     enterState(def, S.KO);
     Burst.emit(_center, PAL.strike, 60, 9, 0.5);
     Flip.play('burst', _center, 4.2, 0xFFD8A0, 0, 0.9);
@@ -223,6 +234,39 @@ export function settleKO(): void {
   }
   const win = d1 ? P2 : P1;
   endRound(win, win.hp >= 100 ? 'PERFECT' : 'K.O.');
+}
+
+/* The stage edge. A fighter carried past it loses the round outright: the blow
+   that launched them is the win. Checked after motion has been resolved, for
+   the same reason settleKO is — so a simultaneous exit reads as a double. */
+export function checkRingOut(): void {
+  if (match.over) return;
+  const { P1, P2 } = state;
+  /* Two ways to be out, because the floor is not the only thing past the edge:
+     the physics ground runs wider than the flagstones, so without the second
+     test a fighter could stand just off the stage for ever — and in RUSH,
+     which has no clock, that stalls the match outright. Flying out still lets
+     you steer back; touching down out there does not.
+
+     A fighter KO'd by damage keeps sliding through the death animation and can
+     cross the line on the way down. That is a K.O., not a ring-out, so only a
+     fighter still standing can be rung out. */
+  const gone = (f: Fighter): boolean =>
+    f.state !== S.KO && (Math.abs(f.x) > RINGOUT.x || (f.grounded && Math.abs(f.x) > BOUND + 0.35));
+  const out1 = gone(P1);
+  const out2 = gone(P2);
+  if (!out1 && !out2) return;
+  for (const f of [P1, P2]) {
+    if (!gone(f)) continue;
+    f.hp = 0;
+    enterState(f, S.KO);
+    knockout(f);
+  }
+  if (out1 && out2) {
+    endRound(null, 'DOUBLE RING OUT');
+    return;
+  }
+  endRound(out1 ? P2 : P1, 'RING OUT');
 }
 
 export function resolveCombat(att: Fighter, def: Fighter): void {

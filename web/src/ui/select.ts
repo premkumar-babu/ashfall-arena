@@ -3,11 +3,15 @@ import { THEMES } from '../config/themes';
 import { ASSETS, switchCast, type CastName } from '../assets/models';
 import { Sfx } from '../audio/sfx';
 import { startMatch } from '../game/match';
+import { RUSH_KITS } from '../game/rush';
 import { state } from '../game/state';
 import { applyTheme } from '../render/theme';
 import { dom, maybeById } from './dom';
 
 /* ── character select: cards, stats, stage picker, cast switch ─────────── */
+
+/** What a fighter is in RUSH: not a title and a summon, but how it moves. */
+const rushBlurb = (id: string): string => RUSH_KITS[id]?.blurb ?? 'MOVEMENT';
 
 const cardEls: [HTMLButtonElement[], HTMLButtonElement[]] = [[], []];
 const chipEls: [HTMLButtonElement[], HTMLButtonElement[]] = [[], []];
@@ -167,10 +171,14 @@ export function updateSelectUI(): void {
     const adef = ASSIST_ROSTER[sel[s].assist]!;
     dom.selSide[s].style.setProperty('--acc', def.hex);
     dom.selPick[s].textContent = def.name;
-    dom.selSub[s].textContent = `${def.title} · ${adef.name}`;
+    dom.selSub[s].textContent = state.rush ? rushBlurb(def.id) : `${def.title} · ${adef.name}`;
     syncStats(s, def);
 
     cardEls[s].forEach((b, i) => {
+      // in RUSH a fighter is its movement, so the card says how it moves
+      const sub = b.querySelector('.ctitle');
+      const rdef = ROSTER[i];
+      if (sub && rdef) sub.textContent = state.rush ? rushBlurb(rdef.id) : rdef.title;
       b.classList.toggle('sel', i === sel[s].fighter);
       b.classList.toggle('lock', i === sel[s].fighter && sel[s].locked);
     });

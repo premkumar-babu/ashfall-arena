@@ -12,6 +12,7 @@ import { arena } from '../world/arena';
 import { retireAssist } from './assist';
 import type { Fighter } from './fighter';
 import { enterState } from './fsm';
+import { resetRush } from './rush';
 import { assistRigs, bindAssist, rigs } from './rigs';
 import { state } from './state';
 
@@ -164,6 +165,7 @@ export function newRound(): void {
     enterState(f, S.IDLE);
     f.physicsBody?.teleport(f.x, f.y);         // a set position, not a move: no sweep across the stage
   }
+  resetRush();                          // no air dash or double jump carries into a fresh stage
   resetInputBuffers();                  // no buffered press carries over from the last round
   // every round starts on a tidy courtyard
   physics?.clearDebris();
