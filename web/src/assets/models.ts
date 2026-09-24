@@ -4,7 +4,7 @@ import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import {
   ClipLib, applyLibraryClips, bindClips, bindLibraryToAll, captureRest, libraryTable, loadCharacterClips,
 } from '../anim/animation';
-import { buildBoneRig, collectBones, isBone, pickBone } from '../anim/bones';
+import { buildBoneRig, collectBones, isBone, normBone, pickBone } from '../anim/bones';
 import type { AnimTarget } from '../anim/types';
 import { queryParam, storageGet, storageSet } from '../core/platform';
 import type { Assist } from '../game/assist-rig';
@@ -15,6 +15,7 @@ import { ENV_MATS, MODEL_ENV } from '../render/stage';
 import { schedulePortraits } from '../ui/portraits';
 import { CLIPS, loadClipManifest, loadWithFallback, resetClipManifest, type ModelAsset } from './loader';
 import { Assets } from './pipeline';
+import { warmPipelines } from '../render/warmup';
 
 /*
   Character art.
@@ -241,6 +242,65 @@ function prepModel(model: THREE.Object3D): number {
   return k;
 }
 
+/* ── build ──────────────────────────────────────────────────────────────
+   The KayKit cast is chibi: a head a third of the body, legs barely longer
+   than the head is tall. It is a lovely style for an adventure game and it is
+   why a playtester called this "fighting lego men". Every one of them shares
+   the Rig_Medium skeleton, so the proportions can be changed on the bones
+   rather than the meshes: a smaller head, a broader chest, longer arms and
+   much longer legs turn a toy into a fighter, and the animation library still
+   drives them unchanged because it only ever writes rotations.
+
+   Scales are uniform, so a bent knee or a swung arm never shears. A scale on
+   the chest carries down to the head and arms, so theirs are divided back out.
+   Only the compact cast gets this: the Mixamo humans are already adults. */
+interface Build {
+  readonly head: number;
+  readonly chest: number;
+  readonly arm: number;
+  readonly leg: number;
+}
+
+const BUILDS: Readonly<Record<string, Build>> = {
+  cinderward: { head: 0.68, chest: 1.1, arm: 1.12, leg: 1.4 },
+  palevigil: { head: 0.64, chest: 1.04, arm: 1.1, leg: 1.48 },
+  bronzemaw: { head: 0.7, chest: 1.2, arm: 1.2, leg: 1.3 },
+  nocturne: { head: 0.64, chest: 1.0, arm: 1.08, leg: 1.46 },
+};
+const SUMMON_BUILD: Build = { head: 0.68, chest: 1.1, arm: 1.12, leg: 1.4 };
+
+const _bw = new THREE.Vector3();
+
+function lowestFoot(model: THREE.Object3D): number {
+  model.updateMatrixWorld(true);
+  let low = Infinity;
+  model.traverse((n) => {
+    if (!isBone(n)) return;
+    const k = normBone(n.name);
+    if (k.endsWith('foot') || k.endsWith('toes')) low = Math.min(low, n.getWorldPosition(_bw).y);
+  });
+  return low;
+}
+
+function applyBuild(model: THREE.Object3D, b: Build): void {
+  if (ASSETS.cast !== 'compact') return;
+  const before = lowestFoot(model);
+  model.traverse((n) => {
+    if (!isBone(n)) return;
+    const k = normBone(n.name);
+    if (k === 'head') n.scale.setScalar(b.head / b.chest);
+    else if (k === 'chest') n.scale.setScalar(b.chest);
+    else if (k === 'leftupperarm' || k === 'rightupperarm') n.scale.setScalar(b.arm / b.chest);
+    else if (k === 'leftupperleg' || k === 'rightupperleg') n.scale.setScalar(b.leg);
+  });
+  const after = lowestFoot(model);
+  // longer legs push the feet through the floor; lift the model by exactly that much
+  if (Number.isFinite(before) && Number.isFinite(after)) {
+    const parentScale = model.parent ? model.parent.getWorldScale(_bw).y : 1;
+    model.position.y += (before - after) / (parentScale || 1);
+  }
+}
+
 /* ── materials ──────────────────────────────────────────────────────── */
 
 /*
@@ -366,9 +426,10 @@ function applyModel(f: Fighter, asset: ModelAsset): void {
   const scale = prepModel(model);
   f.modelFit = model.scale.x;          // the landing squash multiplies this, not 1
   captureRest(model);                  // before anything poses it
+  applyBuild(model, BUILDS[f.def.id] ?? SUMMON_BUILD);
   tintModel(model, f.def.accent);
   applyPBR(model);                     // after the tint, which writes .color
-  f.root.add(model);
+  f.spin.add(model);                   // under the lean and spin pivots, so body language never moves the root
   f.model = model;
   f.modelMats = collectMats(model);
   f.boneRig = buildBoneRig(model);
@@ -381,6 +442,7 @@ function applyAssistModel(a: Assist, asset: ModelAsset): void {
   const model = asset.object;
   prepModel(model);
   captureRest(model);
+  applyBuild(model, SUMMON_BUILD);
   tintModel(model, a.def.color);
   a.baseY = model.position.y;
   a.baseScale = model.scale.x;
@@ -471,7 +533,10 @@ function selectCast(name: CastName): CastName {
 }
 
 export function restoreCast(): CastName {
-  const q = queryParam('cast') ?? storageGet(CAST_KEY);
+  /* Only the URL picks another cast now: the switch is a developer tool
+     (hidden without ?dev), and a choice saved from before would otherwise
+     strand a player on a cast they can no longer switch away from. */
+  const q = queryParam('cast') ?? (queryParam('dev') !== null ? storageGet(CAST_KEY) : null);
   return selectCast(isCastName(q) ? q : ASSETS.cast);
 }
 
@@ -509,6 +574,8 @@ export function beginAssetLoad(): void {
       if (gen !== generation) return;
       borrowMissing(ASSETS.fighters, dressFighter, rigs);
       loadCharacterClips(ASSETS.fighters, rigs, reportAssets);
+      // the cast is in: compile the scene's pipelines now, on the title, not mid-fight
+      window.setTimeout(warmPipelines, 400);
     });
     void preload(ASSETS.assists, dressAssist, gen).then(() => {
       if (gen !== generation) return;

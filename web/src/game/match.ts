@@ -1,5 +1,6 @@
 import { GROUND, METER, PHASE, ROUNDS_TO_WIN, S, SPAWN_X } from '../config/constants';
 import { Sfx } from '../audio/sfx';
+import { ROSTER } from '../config/roster';
 import { fightCall, matchOver, resetFeel, roundIntro, roundOver } from '../fx/juice';
 import { resetInput, resetInputBuffers } from '../input/controller';
 import { announce, calloutAfter, clearAnnounce } from '../ui/announcer';
@@ -12,7 +13,18 @@ import { arena } from '../world/arena';
 import { retireAssist } from './assist';
 import type { Fighter } from './fighter';
 import { enterState } from './fsm';
-import { resetRush } from './rush';
+import { resetBodyLanguage } from './pose';
+import { emberHolder, resetRush } from './rush';
+import { resetFinish } from './finish';
+import { resetSpecials } from './specials';
+import { resetFatalBlows } from './fatalblow';
+import { resetThrows } from './throws';
+import { resetBlood } from '../fx/blood';
+import { resetCinematic, setCinematic } from '../camera/camera-rig';
+import { clearBanners } from '../ui/banner';
+import { hideVersus, showVersus } from '../ui/versus';
+import { warmPipelines } from '../render/warmup';
+import { hush, say } from '../audio/voice';
 import { assistRigs, bindAssist, rigs } from './rigs';
 import { state } from './state';
 
@@ -32,9 +44,76 @@ export const match = {
   lastTrade: '—',
   lastStop: 0,
   finishCalled: false,
+  /** The first clean hit of the round has been banner'd. */
+  firstHit: false,
   draws: 0,
   paused: false,
+  /** Seconds the simulation holds before the first round: the versus screen. */
+  hold: 0,
 };
+
+/** The match intro: the versus card, then a close shot of each fighter. */
+const VERSUS_MS = 1600;
+const INTRO_SHOT = 1.5;
+const INTRO_TOTAL = VERSUS_MS / 1000 + INTRO_SHOT * 2;
+
+/* The round call waits for the intro. Holding it here rather than on a timer
+   lets a keypress skip the intro and bring the call forward. */
+let pendingIntro: (() => void) | null = null;
+let introShot = -1;
+
+/** Any key or tap during the intro skips straight to the round call. */
+export function skipIntro(): void {
+  if (match.hold <= 0 || state.phase !== PHASE.FIGHT) return;
+  match.hold = 0.0001;
+  hideVersus();
+}
+
+/** One step of the match intro; true while it is still holding the round. */
+export function stepHold(dt: number): boolean {
+  if (match.hold <= 0) return false;
+  match.hold = Math.max(0, match.hold - dt);
+  const { P1, P2 } = state;
+  // which shot: the versus card, then P1 in close, then P2
+  const shot = match.hold > INTRO_SHOT * 2 ? 0 : match.hold > INTRO_SHOT ? 1 : 2;
+  if (match.hold > 0 && shot !== introShot) {
+    introShot = shot;
+    if (shot > 0) {
+      const f = shot === 1 ? P1 : P2;
+      setCinematic({ x: f.x, y: 2.35, dist: 5.0, yaw: f.face * 0.55, h: -0.35 });
+      introCard(f, shot === 1 ? 0 : 1);
+    }
+  }
+  if (match.hold > 0) return true;
+  // the intro is over: back to the fight rig, and call the round
+  introShot = -1;
+  introCard(null, 0);
+  setCinematic(null);
+  document.body.classList.remove('intro');
+  const go = pendingIntro;
+  pendingIntro = null;
+  go?.();
+  return false;
+}
+
+let cardEl: HTMLElement | null = null;
+function introCard(f: Fighter | null, side: 0 | 1): void {
+  if (!cardEl) {
+    cardEl = document.createElement('div');
+    cardEl.id = 'introcard';
+    cardEl.setAttribute('aria-hidden', 'true');
+    document.getElementById('hud')?.appendChild(cardEl);
+  }
+  if (!f) {
+    cardEl.className = '';
+    return;
+  }
+  cardEl.innerHTML = `<b>${f.def.name}</b><span>${f.def.title.toUpperCase()}</span>`;
+  cardEl.style.setProperty('--acc', f.def.hex);
+  cardEl.className = '';
+  void cardEl.offsetWidth;
+  cardEl.className = `on s${side}`;
+}
 
 /** A stalemate has to end somewhere. */
 export const MAX_ROUNDS = 5;
@@ -69,6 +148,7 @@ export function startMatch(): void {
   }
   match.round = 1;
   match.draws = 0;
+  resetFatalBlows(true);                // one fatal blow each, per match
   match.paused = false;
   resetFeel();
   document.body.classList.remove('paused');
@@ -78,11 +158,28 @@ export function startMatch(): void {
   for (const p of arena.plinths) p.visible = false;
   applyIdentity();
   renderStocks();
+  warmPipelines();                      // compiled while the versus card covers the screen
+  match.hold = INTRO_TOTAL;
+  introShot = -1;
+  document.body.classList.add('intro');         // the fight HUD comes in with the round call
+  showVersus(state.P1, state.P2, VERSUS_MS);
   newRound();
 }
 
 export function returnToSelect(): void {
   hideResults();
+  hideVersus();
+  hush();
+  match.hold = 0;
+  pendingIntro = null;
+  introShot = -1;
+  introCard(null, 0);
+  document.body.classList.remove('intro');
+  resetFinish();
+  resetSpecials();
+  resetFatalBlows(false);
+  resetThrows();
+  resetCinematic();
   state.phase = PHASE.SELECT;
   match.over = true;
   resetFeel();
@@ -126,6 +223,10 @@ export function applyIdentity(): void {
     block.style.setProperty('--acc-lite', d.lite);
     block.style.setProperty('--acc-dim', d.dim);
     dom.name[i as 0 | 1].textContent = d.name;
+    // the select screen's portrait of this fighter, in the ring at the end of the bar
+    const idx = ROSTER.findIndex((r) => r.id === d.id);
+    const face = document.querySelector<HTMLElement>(`#grid${i} .card[data-index="${idx}"] .portrait`)?.style.backgroundImage;
+    if (face) block.style.setProperty('--face', face);
     const legend = dom.keyName[i as 0 | 1];
     legend.textContent = d.name;
     legend.style.color = d.hex;
@@ -160,12 +261,19 @@ export function newRound(): void {
     f.powerLight.distance = 11;
     f.body.rotation.set(0, 0, 0);
     f.body.position.y = 0;
+    resetBodyLanguage(f);
     f.root.rotation.y = f.face * Math.PI / 2;
     retireAssist(f.assist);
     enterState(f, S.IDLE);
     f.physicsBody?.teleport(f.x, f.y);         // a set position, not a move: no sweep across the stage
   }
   resetRush();                          // no air dash or double jump carries into a fresh stage
+  resetFinish();
+  resetCinematic();
+  resetSpecials();
+  resetFatalBlows(false);
+  resetThrows();
+  resetBlood();                         // every round starts on clean stones
   resetInputBuffers();                  // no buffered press carries over from the last round
   // every round starts on a tidy courtyard
   physics?.clearDebris();
@@ -173,19 +281,30 @@ export function newRound(): void {
   match.time = 99;
   match.over = false;
   match.finishCalled = false;
+  match.firstHit = false;
+  clearBanners();
   dom.round.textContent = `ROUND ${match.round < 10 ? '0' : ''}${match.round}`;
 
-  // every round gets the same two-beat callout: which round, then FIGHT
+  // every round gets the same two-beat callout: which round, then FIGHT —
+  // after the versus screen, if one is up
   if (state.phase === PHASE.FIGHT) {
-    const word = ['', 'ROUND ONE', 'ROUND TWO', 'ROUND THREE', 'FINAL ROUND'][match.round] ?? `ROUND ${match.round}`;
-    announce(word, 1100, 'slam');
-    roundIntro();
-    calloutAfter(1250, () => {
-      if (state.phase === PHASE.FIGHT && !match.over) {
-        announce('FIGHT!', 800, 'slam');
-        fightCall();
-      }
-    });
+    const epoch = match.epoch;
+    const intro = (): void => {
+      if (state.phase !== PHASE.FIGHT || match.epoch !== epoch) return;
+      const word = ['', 'ROUND ONE', 'ROUND TWO', 'ROUND THREE', 'FINAL ROUND'][match.round] ?? `ROUND ${match.round}`;
+      announce(word, 1100, 'slam');
+      roundIntro();
+      calloutAfter(1250, () => {
+        if (state.phase === PHASE.FIGHT && !match.over) {
+          // RUSH is tag, and the one thing a player needs to know as it starts is who is it
+          const it = emberHolder();
+          announce(it ? `${it.def.name} IS IT!` : 'FIGHT', it ? 1100 : 800, 'slam');
+          fightCall();
+        }
+      });
+    };
+    if (match.hold > 0) pendingIntro = intro;
+    else intro();
   }
 }
 
@@ -208,7 +327,16 @@ export function endRound(winner: Fighter | null, reason: string): void {
     winner.rounds = Math.min(ROUNDS_TO_WIN, winner.rounds + 1);
   }
   renderStocks();
-  announce(reason, 2000, 'slam');
+  /* Every round is called for its winner, the way the genre calls them; a
+     flawless round says so first. A fatality is called by finish.ts. */
+  const name = winner?.def.name;
+  const named = !!name && (reason === 'K.O.' || reason === 'FLAWLESS VICTORY');
+  const call = !named ? reason : reason === 'K.O.' ? `${name} WINS` : `FLAWLESS VICTORY\n${name} WINS`;
+  announce(call, 2000, 'slam');
+  // and the camera goes to the winner, standing over it
+  if (winner && reason !== 'FATALITY' && reason !== 'DRAW') {
+    setCinematic({ x: winner.x, y: 2.15, dist: 7.3, yaw: winner.face * 0.42 });
+  }
 
   later(() => {
     if (state.phase !== PHASE.FIGHT || match.epoch !== epoch) return;
@@ -221,10 +349,12 @@ export function endRound(winner: Fighter | null, reason: string): void {
       let champ: Fighter | null = null;
       if (done.length === 1) champ = done[0]!;
       else if (!done.length && outOfRounds) champ = P1.rounds === P2.rounds ? null : P1.rounds > P2.rounds ? P1 : P2;
-      announce(champ ? `${champ.def.name} WINS` : 'DRAW GAME', 1600, 'slam');
+      // the round call already named the winner (or the fatality card did); only a draw needs its own
+      const said = champ && (named || reason === 'FATALITY') && champ === winner;
+      if (!said) announce(champ ? `${champ.def.name} WINS` : 'DRAW GAME', 1600, 'slam');
       later(() => {
         if (state.phase === PHASE.FIGHT && match.epoch === epoch) showResults(champ);
-      }, 1700);
+      }, said ? 600 : 1700);
     } else {
       match.round++;
       newRound();
@@ -273,14 +403,23 @@ export function hideResults(): void {
    A string survives while hits keep landing inside the window; the display
    only appears from the second hit, and bumps in scale on every one after. */
 
-export function bumpCombo(f: Fighter): void {
+export function bumpCombo(f: Fighter, damage = 0): void {
+  if (f.combo === 0) f.comboDmg = 0;
   f.combo += 1;
+  f.comboDmg += damage;
   if (f.combo > f.bestCombo) f.bestCombo = f.combo;
   f.comboTimer = 1.15;
   const el = dom.combo[f.slot === 0 ? 0 : 1];
-  if (el.firstElementChild) el.firstElementChild.textContent = String(f.combo);
+  // the damage the string has done, then the hit count under it
+  const num = el.querySelector('.cnum');
+  const dmg = el.querySelector('.cdmg');
+  if (num) num.textContent = String(f.combo);
+  if (dmg) dmg.textContent = f.comboDmg.toFixed(1);
   if (f.combo < 2) return;
   Sfx.combo(f.combo);
+  // the announcer notices a long string
+  if (f.combo === 4) say('Excellent!');
+  else if (f.combo === 7) say('Outstanding!');
   el.classList.add('on');
   el.classList.remove('bump');
   void el.offsetWidth;                 // restart the keyframe on every hit

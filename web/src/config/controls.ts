@@ -34,12 +34,32 @@ export const MOVEMENT = {
   coyoteTime: 0.08,
 } as const;
 
+/*
+  The duel's weight. Fighters in this genre are deliberate on the ground: a
+  forward walk is a commitment, backing off is slower still, and a jump is a
+  high, committed arc you cannot steer out of — which is what makes a jump-in
+  a read and an uppercut its answer. RUSH keeps its own, looser numbers.
+*/
+export const DUEL_FEEL = {
+  /** Walk speed toward the opponent and away from them, as fractions of the fighter's speed. */
+  walkForward: 0.8,
+  walkBack: 0.6,
+  /** Jump launch speed multiplier: higher arcs, more hang. */
+  jump: 1.1,
+  /** Air steering in place of MOVEMENT.airControl. */
+  airControl: 0.2,
+} as const;
+
 export const INPUT = {
   /** A press stays live this long, so an attack pressed just before recovery ends still comes out. */
   buffer: 0.10,
   dashBuffer: 0.08,
   /** The second tap of a double-tap dash has to land inside this window. */
   dashTap: 0.26,
+  /** Back then forward counts as a motion if forward follows inside this... */
+  motion: 0.34,
+  /** ...and light turns it into the special if pressed inside this after. */
+  motionPress: 0.28,
 
   /** Radial stick deadzone, rescaled so movement starts smoothly at its edge. */
   stickDeadzone: 0.24,

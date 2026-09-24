@@ -27,12 +27,15 @@ interface PropSpec {
 }
 
 const LAYOUT: readonly PropSpec[] = [
-  { kind: 'urn', x: -6.3, z: 0.72, yaw: 0.3 },
-  { kind: 'crate', x: -8.3, z: -0.92, yaw: 0.25 },
-  { kind: 'urn', x: -9.8, z: 0.8, yaw: 1.1 },
-  { kind: 'urn', x: 6.5, z: -0.74, yaw: 2.0 },
-  { kind: 'crate', x: 8.4, z: 0.94, yaw: -0.2 },
-  { kind: 'crate', x: 8.4, z: 0.94, level: 1, yaw: 0.35 },
+  /* All of them a step behind the fighting line. In front of it, the close
+     fight camera looked through a stack of crates at the corner, and an urn's
+     edge sat inside a fighter's capsule. */
+  { kind: 'urn', x: -6.3, z: -1.25, yaw: 0.3 },
+  { kind: 'crate', x: -8.3, z: -1.3, yaw: 0.25 },
+  { kind: 'urn', x: -9.8, z: -1.2, yaw: 1.1 },
+  { kind: 'urn', x: 6.5, z: -1.25, yaw: 2.0 },
+  { kind: 'crate', x: 8.4, z: -1.3, yaw: -0.2 },
+  { kind: 'crate', x: 8.4, z: -1.3, level: 1, yaw: 0.35 },
 ];
 
 const URN = { halfHeight: 0.45, radius: 0.34 } as const;

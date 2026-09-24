@@ -79,6 +79,15 @@ const feel = {
 };
 
 let loopRef: FixedStepLoop | null = null;
+
+/* A held mood, as opposed to a kick: FINISH THEM darkens and drains the stage
+   and keeps it that way until it is released. */
+const mood = { desat: 0, dim: 0, d: 0, m: 0 };
+
+export function setMood(desat: number, dim: number): void {
+  mood.desat = desat;
+  mood.dim = dim;
+}
 const _fwd = new THREE.Vector3();
 const _up = new THREE.Vector3();
 
@@ -221,8 +230,10 @@ export function updateFeel(dt: number): void {
   if (loopRef) loopRef.timeScale = scale;
   feel.desat = damp(feel.desat, feel.slowT > 0 ? 0.55 : 0, feel.slowT > 0 ? 10 : 3, dt);
 
+  mood.d = damp(mood.d, mood.desat, 3.2, dt);
+  mood.m = damp(mood.m, mood.dim, 3.2, dt);
   const kick = REDUCED_MOTION ? 0.3 : 1;
-  post?.setKick(feel.ab * kick, feel.flash * kick, feel.desat);
+  post?.setKick(feel.ab * kick, feel.flash * kick - mood.m, Math.max(feel.desat, mood.d));
 
   // the audio listener rides the camera: stereo for one-shots, 3D for the beds
   const dist = Math.max(1, Math.abs(camera.position.z));
@@ -243,6 +254,7 @@ export function updateFeel(dt: number): void {
 }
 
 export function resetFeel(): void {
+  mood.desat = mood.dim = mood.d = mood.m = 0;
   feel.trauma = feel.fov = feel.ab = feel.flash = feel.desat = feel.slowT = 0;
   feel.koX = null;
   feel.lastTick = -1;

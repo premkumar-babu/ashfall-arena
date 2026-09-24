@@ -17,6 +17,7 @@ export const ACT = {
   ASSIST: 1 << 3,
   POWER: 1 << 4,
   DASH: 1 << 5,
+  SPECIAL: 1 << 6,
 } as const;
 
 export interface Intent {
@@ -30,6 +31,8 @@ export interface Intent {
   kickDown: boolean;
   assistDown: boolean;
   powerDown: boolean;
+  /** Back, forward + light: the fighter's special. */
+  specialDown: boolean;
   /** ACT flags the game acted on this step. */
   consumed: number;
 }
@@ -37,7 +40,7 @@ export interface Intent {
 export function blankIntent(): Intent {
   return {
     move: 0, dash: 0, block: false, jumpHeld: false,
-    jumpDown: false, punchDown: false, kickDown: false, assistDown: false, powerDown: false,
+    jumpDown: false, punchDown: false, kickDown: false, assistDown: false, powerDown: false, specialDown: false,
     consumed: 0,
   };
 }

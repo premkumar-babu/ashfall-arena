@@ -21,6 +21,7 @@ import { legacyIntensity } from '../render/lights';
 */
 
 const SIZE = 256;
+const _head = new THREE.Vector3();
 
 /* A render target gets neither tone mapping nor the sRGB output transform —
    those belong to the canvas — so the linear bytes are encoded here. The
@@ -163,6 +164,7 @@ class PortraitStudio {
     holdPortraitPose(f);
     this.scene.add(root);
     root.updateMatrixWorld(true);
+    this.frameOn(f);
 
     let pixels: Promise<ArrayBufferView>;
     try {
@@ -201,6 +203,19 @@ class PortraitStudio {
     }
     this.ctx.putImageData(img, 0, 0);
     return this.canvas.toDataURL('image/png');
+  }
+
+  /* Chest-up on the fighter's own head, not a fixed height: the cast's builds
+     (longer legs on some, a lower brute) put every head somewhere different. */
+  private frameOn(f: Fighter): void {
+    let head: THREE.Object3D | null = null;
+    f.model?.traverse((n) => {
+      if (!head && (n as THREE.Bone).isBone && /^head$/i.test(n.name)) head = n;
+    });
+    const y = head ? (head as THREE.Object3D).getWorldPosition(_head).y + 0.22 : 2.42;
+    this.cam.position.set(0.95, y + 0.28, 2.75);
+    this.cam.lookAt(0, y, 0);
+    this.back.position.y = y + 0.08;
   }
 
   dispose(): void {

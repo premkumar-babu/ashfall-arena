@@ -313,6 +313,37 @@ export class SfxEngine {
     this.hiss(0.42, 0.55, 240, 0.6, o);
   }
 
+  /** Wet and heavy: a low body thump under a smear of band-passed noise. */
+  gore(p: number, x?: number): void {
+    const o = { pan: this.pan(x), send: 0.25, jitter: 0.12 };
+    this.tone('sine', 110, 36, 0.42 * p, 0.003, 0.24, o);
+    this.hiss(0.30 * p, 0.24, 420, 2.4, o);
+    this.hiss(0.16 * p, 0.09, 1900, 1.2, o);
+  }
+
+  /** Bone: two dry cracks a few milliseconds apart. */
+  crunch(x?: number): void {
+    const o = { pan: this.pan(x), send: 0.12, jitter: 0.1 };
+    this.tone('square', 1800, 240, 0.11, 0.001, 0.04, o);
+    this.later(26, () => this.tone('square', 1300, 170, 0.09, 0.001, 0.05, o));
+    this.hiss(0.24, 0.07, 2600, 1.6, o);
+  }
+
+  /** FINISH THEM: a low heartbeat under the call. */
+  finishSting(): void {
+    const o = { send: 0.5, jitter: 0, priority: true };
+    this.tone('sine', 62, 40, 0.55, 0.01, 0.35, o);
+    this.later(260, () => this.tone('sine', 58, 38, 0.45, 0.01, 0.4, o));
+  }
+
+  /** The fatality: a sub drop that swells under a long dark tail. */
+  fatal(): void {
+    const o = { send: 0.8, jitter: 0, priority: true };
+    this.tone('sawtooth', 55, 40, 0.24, 0.35, 2.4, o);
+    this.tone('sine', 82, 28, 0.6, 0.02, 2.2, o);
+    this.hiss(0.3, 1.5, 160, 0.5, o);
+  }
+
   /* ── match calls ────────────────────────────────────────────────────── */
 
   /** Round start: a struck bronze gong, inharmonic partials and a long bloom. */

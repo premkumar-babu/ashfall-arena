@@ -43,6 +43,8 @@ export class PlayerController {
   private tapDir = 0;
   private tapTime = -Infinity;
   private dashDir = 0;
+  private backTime = -Infinity;
+  private motionTime = -Infinity;
 
   constructor(readonly slot: 0 | 1, private readonly map: PlayerBindings) {}
 
@@ -71,8 +73,20 @@ export class PlayerController {
       || (primary && mouse.wasPressed(mouseButton))
       || !!touch?.wasPressed(touchAct);
 
+    /* Motion input: back, then forward, relative to where the fighter faces.
+       Light pressed just after is the special instead of a jab. Read before
+       prevMove moves on, so forward + light on the same step still counts. */
+    if (move !== 0 && move !== this.prevMove) {
+      if (move * f.face < 0) this.backTime = this.clock;
+      else if (this.clock - this.backTime < INPUT.motion) this.motionTime = this.clock;
+    }
+
     if (keyboard.wasPressed(k.jump) || pad?.jumpPressed || touch?.wasPressed('jump')) this.buffer.press(ACT.JUMP, INPUT.buffer);
-    if (pressed(k.punch, PAD.X, MOUSE.LEFT, 'punch')) this.buffer.press(ACT.PUNCH, INPUT.buffer);
+    if (pressed(k.punch, PAD.X, MOUSE.LEFT, 'punch')) {
+      const special = this.clock - this.motionTime < INPUT.motionPress;
+      this.buffer.press(special ? ACT.SPECIAL : ACT.PUNCH, INPUT.buffer);
+      if (special) this.motionTime = -Infinity;
+    }
     if (pressed(k.kick, PAD.Y, MOUSE.RIGHT, 'kick')) this.buffer.press(ACT.KICK, INPUT.buffer);
     if (pressed(k.assist, PAD.B, MOUSE.MIDDLE, 'assist')) this.buffer.press(ACT.ASSIST, INPUT.buffer);
     if (pressed(k.power, PAD.RB, MOUSE.BACK, 'power')) this.buffer.press(ACT.POWER, INPUT.buffer);
@@ -111,6 +125,7 @@ export class PlayerController {
     o.kickDown = b.has(ACT.KICK);
     o.assistDown = b.has(ACT.ASSIST);
     o.powerDown = b.has(ACT.POWER);
+    o.specialDown = b.has(ACT.SPECIAL);
     o.consumed = 0;
     return o;
   }
@@ -124,6 +139,7 @@ export class PlayerController {
     this.buffer.clear();
     this.tapDir = 0;
     this.tapTime = -Infinity;
+    this.backTime = this.motionTime = -Infinity;
   }
 }
 

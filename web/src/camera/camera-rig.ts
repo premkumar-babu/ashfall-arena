@@ -35,7 +35,9 @@ const shakeOff = new THREE.Vector3();
 /* Waist-up on the select screen, full body in the fight. At z 4.2 with a 40°
    lens the frustum is 1.53 units either side of centre at the fighter plane,
    which is why the previews stand closer in and the summons are not posed. */
-export const SELECT_CAM = { y: 1.40, z: 4.2, lookY: 1.95, fov: 40, portrait: true } as const;
+/* Raised and pulled back for the cast's longer-legged builds (assets/models.ts), so the
+   waist-up framing still has their heads in it. */
+export const SELECT_CAM = { y: 2.1, z: 6.1, lookY: 2.4, fov: 40, portrait: true } as const;
 
 /* Further back, higher and wider than the select screen, and drifting. */
 const TITLE_CAM = { y: 4.0, z: 12.0, lookY: 2.9, fov: 54 } as const;
@@ -61,7 +63,7 @@ function fightFov(): number {
 
 const FRAMING = {
   /** Space kept beyond each fighter's root, so a full extension or a knockback stays in frame. */
-  margin: 3.2,
+  margin: 1.9,
   /** Hard ceiling on pull-back, reached only on very narrow (portrait phone) screens. */
   zMaxFit: 40,
   /** Seconds of the pair's average velocity the camera leads by. */
@@ -298,6 +300,34 @@ export function camViewName(): string {
   return CAM_VIEWS[viewIndex]!.name;
 }
 
+/* A cinematic hold. Something that wants the frame — a fatality — names a
+   point and a distance, and the fight rig eases over to that shot and back
+   again when it is released. The rig keeps running underneath, so letting go
+   returns to exactly the framing the fight would have had. */
+const cine = { on: false, x: 0, y: 1.6, dist: 6, yaw: 0.35, h: 0.35, w: 0 };
+const _cinePos = new THREE.Vector3();
+const _cineLook = new THREE.Vector3();
+
+/** h is the camera's height over the point it looks at: negative looks up. A new shot while one is held is a hard cut. */
+export function setCinematic(shot: { x: number; y: number; dist: number; yaw: number; h?: number } | null): void {
+  if (!shot) {
+    cine.on = false;
+    return;
+  }
+  cine.on = true;
+  cine.x = shot.x;
+  cine.y = shot.y;
+  cine.dist = shot.dist;
+  cine.yaw = shot.yaw;
+  cine.h = shot.h ?? 0.35;
+}
+
+/** Straight back to the rig, no ease: a new round or the select screen. */
+export function resetCinematic(): void {
+  cine.on = false;
+  cine.w = 0;
+}
+
 export function updateCameraFight(dt: number): void {
   dampLights(LIGHTS.ambFight, LIGHTS.hemiFight, LIGHTS.keyFight, dt);
   applyFightFov(dt);
@@ -326,7 +356,7 @@ export function updateCameraFight(dt: number): void {
   rigState.z = rigBase.z;
 
   rigState.look.x = springs.lookX.step(rigState.look.x, mid * 0.92 + leadX * 0.5, FRAMING.smoothLook, dt);
-  rigState.look.y = springs.lookY.step(rigState.look.y, 1.66 + highest * 0.42, FRAMING.smoothLook, dt);
+  rigState.look.y = springs.lookY.step(rigState.look.y, 1.85 + highest * 0.42, FRAMING.smoothLook, dt);
 
   const view = CAM_VIEWS[viewIndex]!;
   if (view.yaw === 0 && view.zoom === 1 && view.height === 1) {
@@ -340,6 +370,13 @@ export function updateCameraFight(dt: number): void {
     const s = Math.sin(view.yaw);
     camera.position.set(rigState.look.x + dx * c - dz * s, rigBase.y * view.height, PLANE_Z + dx * s + dz * c);
     camera.lookAt(rigState.look.x, rigState.look.y + view.lookY, PLANE_Z);
+  }
+  cine.w = damp(cine.w, cine.on ? 1 : 0, cine.on ? 3.4 : 2.2, dt);
+  if (cine.w > 0.002) {
+    _cinePos.set(cine.x + Math.sin(cine.yaw) * cine.dist, cine.y + cine.h, PLANE_Z + Math.cos(cine.yaw) * cine.dist);
+    camera.position.lerp(_cinePos, cine.w);
+    _cineLook.set(rigState.look.x, rigState.look.y, PLANE_Z).lerp(_cinePos.set(cine.x, cine.y, PLANE_Z), cine.w);
+    camera.lookAt(_cineLook);
   }
   camera.rotation.z += camRoll;                    // slight bank toward the swing
 

@@ -1862,10 +1862,9 @@ body.bye #bye{display:grid;}
 }
 
 /* ── RUSH ───────────────────────────────────────────────────────────────
-   The movement-only mode has no health, no meters and no clock: the only
-   score is ring-outs, which the stocks already show. Hiding the duel's
-   furniture keeps one HUD serving both modes instead of forking it. */
-body.rush #hud .bar,
+   The movement-only mode has no meters and no clock. The health bar stays:
+   in RUSH it is how much the ember has left of you. Hiding the rest of the
+   duel's furniture keeps one HUD serving both modes instead of forking it. */
 body.rush #hud .gauges,
 body.rush #pm1,
 body.rush #pm2,
@@ -1873,3 +1872,311 @@ body.rush #clock,
 body.rush #chips0,
 body.rush #chips1 { display: none; }
 body.rush .timer { min-width: 0; }
+
+/* ── FINISH THEM / FATALITY ─────────────────────────────────
+   The fatality call is the one piece of text in the game that
+   is allowed to be ugly: blood-red, dripping, and slow. */
+#call.fatal span{
+  font-family:var(--impact);font-weight:400;
+  font-size:clamp(66px,17vw,230px);letter-spacing:.09em;line-height:.9;
+  background:linear-gradient(180deg,#ff4a3a 0%,#c1070d 42%,#6a0207 100%);
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;color:#b3060b;
+  filter:drop-shadow(0 6px 0 rgba(0,0,0,.9)) drop-shadow(0 0 46px rgba(200,0,0,.6));
+  animation:fatalIn 1.2s cubic-bezier(.2,.9,.25,1) both;
+}
+@keyframes fatalIn{
+  0%  {transform:scale(2.8);opacity:0;filter:blur(20px);}
+  35% {opacity:1;}
+  60% {transform:scale(.96);}
+  100%{transform:scale(1);opacity:1;}
+}
+/* drips running off the letters, each its own length */
+#call.fatal span::after{
+  content:"";position:absolute;left:4%;right:4%;top:84%;height:70%;
+  background:
+    linear-gradient(#8a0006,#5a0004) 9% 0/7px 55% no-repeat,
+    linear-gradient(#8a0006,#5a0004) 21% 0/5px 88% no-repeat,
+    linear-gradient(#8a0006,#5a0004) 34% 0/9px 42% no-repeat,
+    linear-gradient(#8a0006,#5a0004) 47% 0/6px 100% no-repeat,
+    linear-gradient(#8a0006,#5a0004) 61% 0/8px 64% no-repeat,
+    linear-gradient(#8a0006,#5a0004) 76% 0/5px 80% no-repeat,
+    linear-gradient(#8a0006,#5a0004) 90% 0/7px 50% no-repeat;
+  transform-origin:top;border-radius:0 0 6px 6px;
+  animation:fatalDrip 2.6s cubic-bezier(.5,0,.7,1) .5s both;
+}
+@keyframes fatalDrip{0%{transform:scaleY(0);}100%{transform:scaleY(1);}}
+#call.fatal.out span{animation:callOut .3s ease-in both;}
+
+#finhint{
+  position:absolute;left:50%;bottom:17%;transform:translateX(-50%);
+  font-family:var(--tech);font-weight:700;font-size:clamp(12px,1.7vw,19px);letter-spacing:.2em;
+  color:#ffd9cf;text-shadow:0 2px 10px rgba(0,0,0,.95);white-space:nowrap;
+  padding:10px 20px;border:1px solid rgba(255,60,40,.6);border-radius:3px;
+  background:linear-gradient(90deg,rgba(70,0,4,.0),rgba(90,0,6,.75) 18%,rgba(90,0,6,.75) 82%,rgba(70,0,4,0));
+  opacity:0;pointer-events:none;transition:opacity .25s;
+}
+#finhint.on{opacity:1;animation:finPulse 1s ease-in-out infinite;}
+#finhint b{color:#ff4a3a;margin-right:10px;letter-spacing:.24em;}
+#finhint kbd{font-family:var(--tech);padding:1px 7px;border:1px solid rgba(255,220,200,.6);border-radius:3px;margin:0 3px;}
+@keyframes finPulse{50%{box-shadow:0 0 26px rgba(255,40,20,.45);}}
+@media (prefers-reduced-motion: reduce){
+  #call.fatal span,#call.fatal span::after,#finhint.on{animation:none;}
+}
+
+/* during a fatality only the callout is left on screen */
+body.cine #hud > :not(#call){opacity:0;transition:opacity .35s;}
+
+/* ── versus screen ─────────────────────────────────────────── */
+#versus{
+  position:fixed;inset:0;z-index:40;display:none;pointer-events:none;overflow:hidden;
+  background:#07070B;
+}
+#versus.on{display:block;animation:vsFade .25s ease-out both;}
+#versus.out{animation:vsGone .38s ease-in both;}
+@keyframes vsFade{from{opacity:0;}to{opacity:1;}}
+@keyframes vsGone{to{opacity:0;transform:scale(1.04);}}
+#versus .vs-side{position:absolute;top:0;bottom:0;width:62%;}
+#versus .s0{left:0;clip-path:polygon(0 0,100% 0,72% 100%,0 100%);
+  background:radial-gradient(70% 60% at 34% 46%,color-mix(in srgb,var(--acc) 55%,transparent),transparent 70%),linear-gradient(160deg,var(--dim),#0d0607 70%);
+  animation:vsInL .5s cubic-bezier(.2,.9,.25,1) both;}
+#versus .s1{right:0;clip-path:polygon(28% 0,100% 0,100% 100%,0 100%);
+  background:radial-gradient(70% 60% at 66% 54%,color-mix(in srgb,var(--acc) 55%,transparent),transparent 70%),linear-gradient(200deg,var(--dim),#07070B 70%);
+  animation:vsInR .5s cubic-bezier(.2,.9,.25,1) both;}
+@keyframes vsInL{from{transform:translateX(-40%);}to{transform:none;}}
+@keyframes vsInR{from{transform:translateX(40%);}to{transform:none;}}
+#versus .vs-face{
+  position:absolute;width:min(46vh,40vw);aspect-ratio:1;top:14%;
+  background-size:cover;background-position:center;
+  filter:drop-shadow(0 0 30px color-mix(in srgb,var(--acc) 70%,transparent)) drop-shadow(0 12px 0 rgba(0,0,0,.4));
+  -webkit-mask-image:radial-gradient(closest-side,#000 72%,transparent);mask-image:radial-gradient(closest-side,#000 72%,transparent);
+}
+#versus .s0 .vs-face{left:12%;}
+#versus .s1 .vs-face{right:12%;transform:scaleX(-1);}
+#versus .vs-plate{position:absolute;bottom:15%;display:flex;flex-direction:column;gap:6px;}
+#versus .s0 .vs-plate{left:9%;text-align:left;}
+#versus .s1 .vs-plate{right:9%;text-align:right;}
+#versus .vs-plate b{
+  font-family:var(--impact);font-weight:400;font-size:clamp(40px,8vw,108px);line-height:.9;letter-spacing:.04em;
+  color:#fff;text-shadow:0 5px 0 rgba(0,0,0,.6),0 0 40px color-mix(in srgb,var(--acc) 70%,transparent);
+}
+#versus .vs-plate span{font-family:var(--tech);font-weight:700;font-size:clamp(11px,1.4vw,18px);letter-spacing:.34em;color:var(--lite);}
+#versus .vs-mark{z-index:2;
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(-12deg);
+  font-family:var(--impact);font-size:clamp(90px,22vw,300px);line-height:.8;color:#fff;
+  -webkit-text-stroke:5px #07070B;paint-order:stroke fill;
+  text-shadow:-10px -4px 0 #E2612B,10px 4px 0 #5BC8D8,0 0 60px rgba(255,255,255,.45);
+  animation:vsMark .6s cubic-bezier(.14,1.6,.3,1) .28s both;
+}
+@keyframes vsMark{
+  0%{transform:translate(-50%,-50%) rotate(-12deg) scale(3);opacity:0;filter:blur(16px);}
+  60%{transform:translate(-50%,-50%) rotate(-12deg) scale(.92);opacity:1;filter:none;}
+  100%{transform:translate(-50%,-50%) rotate(-12deg) scale(1);opacity:1;}
+}
+@media (prefers-reduced-motion: reduce){
+  #versus.on,#versus.out,#versus .s0,#versus .s1,#versus .vs-mark{animation:none;}
+}
+
+/* ── TOASTY! ───────────────────────────────────────────────── */
+#toasty{
+  position:fixed;right:2.5vw;bottom:-30vh;z-index:30;pointer-events:none;
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+}
+#toasty.on{animation:toastyPeek 1.3s cubic-bezier(.2,.9,.3,1) both;}
+@keyframes toastyPeek{
+  0%{bottom:-30vh;}
+  18%{bottom:2vh;}
+  78%{bottom:2vh;}
+  100%{bottom:-30vh;}
+}
+#toasty b{
+  order:-1;font-family:var(--impact);font-size:clamp(22px,3.6vw,46px);letter-spacing:.06em;color:#FFD27A;
+  text-shadow:0 3px 0 #7a2f0e,0 0 24px rgba(255,140,30,.8);
+}
+#toasty .ember{position:relative;display:block;width:clamp(70px,10vw,120px);aspect-ratio:3/4;}
+#toasty .ember > i{
+  position:absolute;left:50%;bottom:0;border-radius:50% 50% 50% 50%/60% 60% 40% 40%;transform:translateX(-50%);
+  animation:emberFlick .18s ease-in-out infinite alternate;
+}
+#toasty .ember > i:nth-child(1){width:100%;height:100%;background:radial-gradient(60% 70% at 50% 70%,#FF7A2A,#B8300E 70%,transparent 72%);}
+#toasty .ember > i:nth-child(2){width:64%;height:70%;background:radial-gradient(60% 70% at 50% 70%,#FFD27A,#FF8A2A 70%,transparent 72%);animation-delay:.06s;}
+#toasty .ember > i:nth-child(3){width:30%;height:36%;bottom:8%;background:radial-gradient(#FFF6E0,#FFD27A 70%,transparent 72%);animation-delay:.12s;}
+@keyframes emberFlick{from{transform:translateX(-50%) scaleY(1);}to{transform:translateX(-50%) scaleY(1.08) skewX(3deg);}}
+@media (prefers-reduced-motion: reduce){ #toasty .ember > i{animation:none;} }
+
+/* The state pill (IDLE, PUNCH · ACTIVE, HITSTUN) is frame data for the
+   developer overlay, not something a player needs under their health bar. */
+body:not(.dev) #ps1, body:not(.dev) #ps2 { display: none; }
+
+/* The cast switch is a developer tool: the demo cast mixes art styles and
+   the authored cast needs source files the published build does not carry.
+   Players get the one consistent cast; ?dev brings the switch back. */
+body:not(.dev) #castswitch, body:not(.dev) .castlab { display: none; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   MK-STYLE PRESENTATION
+   Modelled on how the genre's current games dress a fight on screen: thin
+   straight health bars in a gold rule with the fighter's portrait at the
+   outer end, a round medallion for the clock between them, names in a
+   Trajan-style serif, calls in gold capitals, FATALITY in red on the left
+   over the winner's name, and the combo counter as damage over hits.
+   Everything here overrides the earlier HUD skins above it.
+   ════════════════════════════════════════════════════════════════════════ */
+:root{ --mk:"Cinzel","Cinzel Decorative",serif; --mk-gold:#E3C57A; --mk-gold-hi:#FFF1C8; --mk-gold-dim:#8A6A2E; --mk-red:#C3141C; }
+
+body #hud .status{padding:18px 30px 0;gap:22px;align-items:start;}
+body #hud .fighter-block{position:relative;gap:5px;}
+body #hud .fighter-block.p1{padding-left:64px;}
+body #hud .fighter-block.p2{padding-right:64px;}
+/* the portrait ring at the outer end of the bar */
+body #hud .fighter-block::before{
+  content:"";position:absolute;top:-6px;width:54px;height:54px;border-radius:50%;
+  background:var(--face,none) center 30%/cover no-repeat,radial-gradient(circle,#2a2020,#0b0808);
+  border:2px solid var(--mk-gold);
+  box-shadow:0 0 0 2px rgba(0,0,0,.85),0 0 18px color-mix(in srgb,var(--acc,#E2612B) 55%,transparent),inset 0 0 10px rgba(0,0,0,.6);
+}
+body #hud .fighter-block.p1::before{left:0;}
+body #hud .fighter-block.p2::before{right:0;transform:scaleX(-1);}
+body #hud .bar{order:0;}
+body #hud .nameplate{order:1;}
+body #hud .gauges{order:3;}
+body #hud .meta{order:2;}
+
+body #hud .bar{
+  height:13px;transform:none;border-radius:1px;overflow:hidden;
+  background:linear-gradient(180deg,#120c0a,#1d1512 50%,#0b0706);
+  border:1px solid var(--mk-gold-dim);
+  box-shadow:0 0 0 1px rgba(0,0,0,.9),0 0 0 2px rgba(227,197,122,.35),0 6px 18px rgba(0,0,0,.7);
+}
+body #hud .bar::after{background:none;}
+body #hud .hp{background:linear-gradient(180deg,var(--mk-gold-hi) 0%,var(--mk-gold) 48%,#B38B3E 100%);}
+body #hud .chip{background:linear-gradient(180deg,#FF6A5A,var(--mk-red) 55%,#6E0A0E);}
+body #hud .bar .hp::after{background:#FFF8E6;box-shadow:0 0 10px #FFE7A8;width:2px;}
+/* the last stretch of health goes red, and the fatal blow is written into it */
+body #hud .fighter-block.danger .hp,
+body #hud .fighter-block.fatal .hp{background:linear-gradient(180deg,#FF7A6A,#D0161E 50%,#7A0A0E);}
+body #hud .bar .fbl{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-family:var(--mk);font-weight:900;font-size:9px;letter-spacing:.34em;color:#FFE9D6;
+  text-shadow:0 1px 2px rgba(0,0,0,.95);opacity:0;transition:opacity .2s;z-index:3;
+}
+body #hud .fighter-block.fatal .bar .fbl{opacity:1;animation:fblPulse 1s ease-in-out infinite;}
+@keyframes fblPulse{50%{color:#fff;text-shadow:0 0 10px #ff3b2f,0 1px 2px #000;}}
+
+body #hud .fname{
+  font-family:var(--mk);font-weight:900;font-size:19px;letter-spacing:.07em;
+  color:#F5E7C6;text-shadow:0 2px 0 rgba(0,0,0,.85),0 0 14px rgba(0,0,0,.8);
+}
+body #hud .tag{font-family:var(--mk);font-size:8px;letter-spacing:.2em;border-color:rgba(227,197,122,.4);background:rgba(0,0,0,.35);color:var(--mk-gold);}
+body #hud .pill{border:0;background:none;padding:0;font-family:var(--mk);font-weight:600;font-size:9.5px;letter-spacing:.2em;color:rgba(227,197,122,.8);backdrop-filter:none;-webkit-backdrop-filter:none;}
+body #hud .pill.ready,body #hud .pill.maxed{color:#FFE7A8;}
+body #hud .pill.live,body #hud .pill.powered{color:#fff;background:none;}
+body #hud .stocks span{width:10px;height:10px;transform:none;border-radius:50%;border:1px solid var(--mk-gold-dim);background:rgba(0,0,0,.5);}
+body #hud .stocks span.on{background:radial-gradient(circle at 35% 35%,#FFF1C8,var(--mk-gold) 55%,#8A6A2E);border-color:var(--mk-gold);box-shadow:0 0 10px rgba(227,197,122,.8);}
+
+/* the clock in a medallion */
+body #hud .timer{
+  width:70px;height:70px;padding:0;margin-top:-6px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font-family:var(--mk);font-weight:900;font-size:30px;line-height:1;color:#F5E7C6;
+  text-shadow:0 2px 0 rgba(0,0,0,.9);
+}
+body #hud .timer::before{
+  content:"";position:absolute;inset:0;border-radius:50%;clip-path:none;
+  background:radial-gradient(circle at 50% 38%,#3a2a1c,#120c08 70%);
+  border:2px solid var(--mk-gold);border-top:2px solid var(--mk-gold);
+  box-shadow:0 0 0 3px rgba(0,0,0,.85),0 0 0 5px rgba(227,197,122,.35),0 8px 22px rgba(0,0,0,.7);
+}
+body #hud .timer small{font-family:var(--mk);font-size:6.5px;letter-spacing:.22em;color:var(--mk-gold);margin-top:3px;}
+body #hud .timer.low{color:#FF6A5A;}
+
+/* ── the calls ─────────────────────────────────────────────────────────── */
+#call span small{
+  display:block;font-size:.24em;letter-spacing:.24em;margin-top:.35em;line-height:1.1;
+  -webkit-text-fill-color:#F5E7C6;color:#F5E7C6;
+}
+#call.fatal span small,#call.warn span small{-webkit-text-fill-color:#FFD9CF;color:#FFD9CF;}
+#call.slam span{
+  font-family:var(--mk);font-weight:900;font-size:clamp(44px,8.4vw,118px);letter-spacing:.07em;line-height:1;
+  background:linear-gradient(180deg,#FFF6D6 0%,#EAC874 46%,#A8782C 100%);
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:var(--mk-gold);
+  text-shadow:none;
+  filter:drop-shadow(0 3px 0 rgba(0,0,0,.85)) drop-shadow(0 0 26px rgba(255,190,90,.35));
+  animation:mkCallIn .42s cubic-bezier(.2,.8,.25,1) both;
+}
+#call.slam span::after{display:none;}
+@keyframes mkCallIn{
+  0%{transform:scale(1.35);opacity:0;}
+  100%{transform:scale(1);opacity:1;}
+}
+#call.warn span{
+  font-family:var(--mk);font-weight:900;font-size:clamp(46px,8.8vw,124px);letter-spacing:.06em;line-height:1;
+  background:linear-gradient(180deg,#FF8A74 0%,#E0231B 50%,#7C0A0C 100%);
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:var(--mk-red);
+  text-shadow:none;
+  filter:drop-shadow(0 3px 0 rgba(0,0,0,.9)) drop-shadow(0 0 30px rgba(200,20,20,.55));
+  animation:mkCallIn .5s cubic-bezier(.2,.8,.25,1) both, mkThrob 1.1s ease-in-out .5s infinite;
+}
+@keyframes mkThrob{50%{transform:scale(1.035);}}
+/* FATALITY: left third, red, the winner under it */
+#call.fatal{place-items:center start;padding-left:7vw;}
+#call.fatal span{
+  font-family:var(--mk);font-weight:900;font-size:clamp(56px,10.5vw,150px);letter-spacing:.05em;line-height:.95;text-align:left;
+  background:linear-gradient(180deg,#FF6E5A 0%,#C8141B 52%,#6A0508 100%);
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:var(--mk-red);
+  filter:drop-shadow(0 4px 0 rgba(0,0,0,.9)) drop-shadow(0 0 40px rgba(180,0,0,.5));
+  animation:fatalIn 1s cubic-bezier(.2,.9,.25,1) both;
+}
+#call.fatal span::after{display:none;}
+#call.fatal span small{font-size:.22em;letter-spacing:.3em;}
+
+/* ── side banners: FIRST HIT ───────────────────────────────────────────── */
+.sidebanner{
+  position:absolute;top:31vh;z-index:5;padding:6px 22px 6px 18px;
+  font-family:var(--mk);font-weight:900;font-size:clamp(12px,1.25vw,16px);letter-spacing:.2em;color:#FFE9D0;
+  text-shadow:0 1px 2px rgba(0,0,0,.95);
+  background:linear-gradient(90deg,rgba(150,12,16,.95),rgba(110,8,12,.85) 70%,rgba(110,8,12,0));
+  border-left:3px solid var(--mk-gold);
+  opacity:0;pointer-events:none;
+}
+.sidebanner.s0{left:30px;}
+.sidebanner.s1{right:30px;border-left:0;border-right:3px solid var(--mk-gold);padding:6px 18px 6px 22px;
+  background:linear-gradient(270deg,rgba(150,12,16,.95),rgba(110,8,12,.85) 70%,rgba(110,8,12,0));}
+.sidebanner.on{animation:bannerIn 1.5s cubic-bezier(.2,.9,.25,1) both;}
+.sidebanner.s1.on{animation-name:bannerInR;}
+@keyframes bannerIn{0%{opacity:0;transform:translateX(-30px);}12%{opacity:1;transform:none;}82%{opacity:1;}100%{opacity:0;}}
+@keyframes bannerInR{0%{opacity:0;transform:translateX(30px);}12%{opacity:1;transform:none;}82%{opacity:1;}100%{opacity:0;}}
+
+/* ── combo: damage over hits ───────────────────────────────────────────── */
+body #hud .combo{top:21vh;gap:0;}
+body #hud .combo .cdmg{
+  font-family:var(--mk);font-weight:900;font-size:clamp(26px,3vw,42px);line-height:1;letter-spacing:.02em;
+  color:#E4262B;text-shadow:0 2px 0 rgba(0,0,0,.9),0 0 18px rgba(200,20,20,.45);font-variant-numeric:tabular-nums;
+}
+body #hud .combo .chits{display:flex;align-items:baseline;gap:6px;}
+body #hud .combo .cnum{font-family:var(--mk);font-weight:900;font-size:clamp(18px,1.9vw,26px);line-height:1;color:#E4262B;text-shadow:0 2px 0 rgba(0,0,0,.9);}
+body #hud .combo .clab{font-family:var(--mk);font-weight:900;font-size:clamp(11px,1.1vw,14px);letter-spacing:.14em;color:#E4262B;opacity:1;text-shadow:0 2px 0 rgba(0,0,0,.9);}
+@media (prefers-reduced-motion: reduce){
+  #call.slam span,#call.warn span,#call.fatal span,.sidebanner.on{animation:none;opacity:1;}
+}
+
+/* ── intro name card ───────────────────────────────────────────────────── */
+#introcard{
+  position:absolute;bottom:13vh;z-index:6;display:flex;flex-direction:column;gap:6px;opacity:0;pointer-events:none;
+}
+#introcard.s0{left:7vw;text-align:left;}
+#introcard.s1{right:7vw;text-align:right;}
+#introcard b{
+  font-family:var(--mk);font-weight:900;font-size:clamp(40px,6.4vw,92px);line-height:.9;letter-spacing:.05em;
+  background:linear-gradient(180deg,#FFF6D6 0%,#EAC874 46%,#A8782C 100%);
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+  filter:drop-shadow(0 3px 0 rgba(0,0,0,.85)) drop-shadow(0 0 24px color-mix(in srgb,var(--acc) 50%,transparent));
+}
+#introcard span{font-family:var(--mk);font-weight:600;font-size:clamp(11px,1.3vw,17px);letter-spacing:.34em;color:#F5E7C6;text-shadow:0 2px 6px rgba(0,0,0,.95);}
+#introcard.on{animation:introIn 1.5s cubic-bezier(.2,.9,.25,1) both;}
+#introcard.s1.on{animation-name:introInR;}
+@keyframes introIn{0%{opacity:0;transform:translateX(-40px);}14%{opacity:1;transform:none;}84%{opacity:1;}100%{opacity:0;}}
+@keyframes introInR{0%{opacity:0;transform:translateX(40px);}14%{opacity:1;transform:none;}84%{opacity:1;}100%{opacity:0;}}
+/* the fight HUD waits for the round call */
+body.intro #hud .status{opacity:0;}
+@media (prefers-reduced-motion: reduce){ #introcard.on{animation:none;opacity:1;} }

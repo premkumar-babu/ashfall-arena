@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
-import { GRAVITY, GROUND, METER, MIN_GAP, MOVES, PLANE_Z, RINGOUT, S } from '../config/constants';
-import { MOVEMENT } from '../config/controls';
+import { BOUND, GRAVITY, GROUND, METER, MIN_GAP, MOVES, PLANE_Z, S } from '../config/constants';
+import { DUEL_FEEL, MOVEMENT } from '../config/controls';
 import { Sfx } from '../audio/sfx';
 import { clamp, damp } from '../core/math';
 import { addTrauma } from '../fx/juice';
@@ -10,6 +10,7 @@ import type { MoveResult } from '../physics/port';
 import type { Fighter } from './fighter';
 import { attackPhase, DASH } from './fsm';
 import type { Intent } from './intent';
+import { state } from './state';
 
 /*
   Fighter movement, in two phases per simulation step.
@@ -72,7 +73,12 @@ export function planMotion(f: Fighter, intent: Intent, foe: Fighter, dt: number)
   const topSpeed = f.def.speed * (f.powered ? METER.powerSpeedMul : 1);
 
   if (mobile && f.dashTime <= 0) {
-    steer(f, intent.move * topSpeed * (f.grounded ? 1 : MOVEMENT.airControl), topSpeed, dt);
+    // the duel walks slower, and slower again backing away; RUSH runs flat out
+    const duel = !state.rush;
+    const toward = intent.move !== 0 && Math.sign(intent.move) === f.face;
+    const walk = duel ? (toward ? DUEL_FEEL.walkForward : DUEL_FEEL.walkBack) : 1;
+    const air = duel ? DUEL_FEEL.airControl : MOVEMENT.airControl;
+    steer(f, intent.move * topSpeed * (f.grounded ? walk : air), topSpeed, dt);
   } else {
     /* Everything the player is not steering — knockback, K.O. slides, blocking,
        dashes, air attacks — keeps its authored drag profile. */
@@ -105,7 +111,7 @@ export function planMotion(f: Fighter, intent: Intent, foe: Fighter, dt: number)
     if (intent.block && f.state === S.JUMP && f.vy < 1) g *= MOVEMENT.fastFall;
     else if (intent.jumpHeld && Math.abs(f.vy) < MOVEMENT.apexHangVy) g *= MOVEMENT.apexHang;
     f.vy += g * dt;
-  } else if (attacking && !f.airMove) {
+  } else if (attacking && !f.airMove && !f.move?.special) {
     // a grounded swing steps into the blow rather than sliding on the spot
     const lunge = (f.move === MOVES.KICK ? 3.1 : 1.9) * f.def.reach;
     const ph = attackPhase(f);
@@ -141,7 +147,7 @@ const unbodied: MoveResult = { x: 0, y: GROUND, grounded: true, movedY: 0 };
 /** The pre-physics movement: a clamp and a floor. Used only if Rapier failed to load. */
 function integrateUnbodied(f: Fighter, dx: number, dy: number): MoveResult {
   const y = Math.max(GROUND, f.y + dy);
-  unbodied.x = clamp(f.x + dx, -RINGOUT.x - 1, RINGOUT.x + 1);
+  unbodied.x = clamp(f.x + dx, -BOUND, BOUND);
   unbodied.movedY = y - f.y;
   unbodied.y = y;
   unbodied.grounded = y <= GROUND;

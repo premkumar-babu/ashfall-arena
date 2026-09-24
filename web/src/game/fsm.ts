@@ -1,12 +1,16 @@
 import * as THREE from 'three/webgpu';
-import { MOVES, PLANE_Z, S, type FighterState, type Move } from '../config/constants';
-import { MOVEMENT } from '../config/controls';
+import { JUGGLE, MOVES, PLANE_Z, S, type FighterState, type Move } from '../config/constants';
+import { DUEL_FEEL, MOVEMENT } from '../config/controls';
 import { Sfx } from '../audio/sfx';
 import { clamp, easeOut } from '../core/math';
 import { Burst } from '../fx/particles';
 import { spawnArc, spawnRing } from '../fx/vfx';
 import type { Fighter } from './fighter';
 import { ACT, type Intent } from './intent';
+import { trySpecial } from './specials';
+import { tryFatalBlow } from './fatalblow';
+import { throwing, tryThrow } from './throws';
+import { state } from './state';
 
 export type Limb = 'fist' | 'foot' | 'blade';
 export type AttackPhase = 'startup' | 'active' | 'recovery';
@@ -33,7 +37,7 @@ export function enterState(f: Fighter, next: FighterState, move: Move | null = n
 
 /** Armed fighters swing the blade where an unarmed fighter would kick. */
 export function limbFor(f: Fighter, move: Move): Limb {
-  return move === MOVES.KICK && f.def.armed ? 'blade' : move.limb;
+  return (move === MOVES.KICK || move === MOVES.SWEEP) && f.def.armed ? 'blade' : move.limb;
 }
 
 /*
@@ -85,17 +89,28 @@ export function canJump(f: Fighter): boolean {
   buffered press fires exactly once. A press it cannot act on yet — a punch
   during recovery, a dash on cooldown — is left in the buffer and fires the
   moment it becomes legal, if that happens inside the buffer window.
+
+  Guard held on the ground turns punch into the uppercut and kick into the
+  sweep — the crouching pair every fighter in this genre is built around.
+  Guard is already the "down" direction on every device, so there is nothing
+  new to learn: down + punch, down + kick.
 */
 function tryAttack(f: Fighter, intent: Intent): boolean {
+  if (tryFatalBlow(f, intent)) return true;
+  if (tryThrow(f, intent)) return true;
+  if (trySpecial(f, intent)) return true;
+  // a special that cannot go yet still comes out as the jab it was pressed as
+  if (intent.specialDown) intent.punchDown = true;
+  const low = intent.block && f.grounded;
   if (intent.punchDown) {
     intent.consumed |= ACT.PUNCH;
-    enterState(f, S.PUNCH, MOVES.PUNCH);
+    enterState(f, S.PUNCH, low ? MOVES.UPPERCUT : MOVES.PUNCH);
     Sfx.whiff(f.x);
     return true;
   }
   if (intent.kickDown) {
     intent.consumed |= ACT.KICK;
-    enterState(f, S.KICK, MOVES.KICK);
+    enterState(f, S.KICK, low ? MOVES.SWEEP : MOVES.KICK);
     Sfx.whiff(f.x);
     return true;
   }
@@ -143,10 +158,17 @@ export function stepState(f: Fighter, intent: Intent, dt: number): void {
     case S.KICK: {
       const move = f.move!;
       const phase = attackPhase(f);
-      f.activeHitbox = phase === 'active' && !f.hitLanded ? f.hitboxes[limbFor(f, move)] : null;
-      if (phase === 'active' && !f.arcFired) {
+      // a special's blow is its bolt, spear or body (specials.ts), never the limb
+      f.activeHitbox = phase === 'active' && !f.hitLanded && !move.special ? f.hitboxes[limbFor(f, move)] : null;
+      if (phase === 'active' && !f.arcFired && !move.special) {
         f.arcFired = true;
-        const heavy = move === MOVES.KICK;
+        // the uppercut rises with the fist
+        if (move === MOVES.UPPERCUT && f.grounded) {
+          f.vy = 5.2;
+          f.grounded = false;
+          f.airTime = MOVEMENT.coyoteTime;
+        }
+        const heavy = move === MOVES.KICK || move === MOVES.UPPERCUT;
         // the arc belongs on the limb actually swinging, not on a guess a metre in front
         f.hitboxes[limbFor(f, move)].anchor.getWorldPosition(_arcP);
         spawnArc(_arcP.x, _arcP.y, f.face, f.def.accent, heavy ? (f.def.armed ? 1.02 : 0.86) : 0.58);
@@ -160,7 +182,21 @@ export function stepState(f: Fighter, intent: Intent, dt: number): void {
     }
 
     case S.HITSTUN:
-      if (f.stateTime >= f.stunTime && f.grounded) enterState(f, S.IDLE);
+      /* A launched fighter who lands is knocked down: flat on the stones for a
+         moment, then up. Without it a launch ended the instant they touched
+         the floor and a juggle had no full stop. */
+      if (f.launched && f.grounded && !throwing(f)) {     // a throw puts them down itself
+        f.launched = false;
+        f.juggles = 0;
+        f.downT = JUGGLE.knockdown;
+        f.stunTime = f.stateTime + JUGGLE.knockdown + 0.2;
+        f.land = 1;
+        Burst.emit(_v.set(f.x, 0.15, PLANE_Z), 0xC9BCA2, 18, 4, 0.8);
+        Sfx.land(1, f.x);
+      }
+      /* Up only when actually up: a knockdown keeps them in hitstun until the
+         body has risen, so nobody punches while still lying on the stones. */
+      if (f.stateTime >= f.stunTime && f.grounded && f.downT <= 0 && f.lean.rotation.x > -0.5) enterState(f, S.IDLE);
       break;
 
     case S.KO:
@@ -170,7 +206,14 @@ export function stepState(f: Fighter, intent: Intent, dt: number): void {
 
 /** A jump carries the momentum it was launched with, so a running jump-in actually crosses ground. */
 export function launchJump(f: Fighter, dir: number): void {
-  f.vy = f.def.jump;
+  /* A jump with a direction is a somersault, forward or back, over the whole
+     arc — the jump this genre is known for. RUSH has its own flips. */
+  if (dir !== 0 && !state.rush) {
+    f.flip = 0.001;
+    f.flipDir = dir === f.face ? 1 : -1;
+    f.flipTime = 0.72;
+  }
+  f.vy = f.def.jump * (state.rush ? 1 : DUEL_FEEL.jump);
   f.grounded = false;
   f.airTime = MOVEMENT.coyoteTime;     // spent: no coyote jump out of a jump
   f.jumpReleased = false;              // the hold that decides this jump's height starts now

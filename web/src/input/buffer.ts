@@ -12,7 +12,8 @@
   react to a hit landing.
 */
 
-const SLOTS = 6;
+/** One slot per ACT flag in game/intent.ts. */
+const SLOTS = 7;
 
 const slotOf = (act: number): number => 31 - Math.clz32(act);
 

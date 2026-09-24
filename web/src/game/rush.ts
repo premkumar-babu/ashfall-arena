@@ -3,13 +3,15 @@ import { BOUND, GRAVITY, MIN_GAP, PLANE_Z, S } from '../config/constants';
 import { MOVEMENT } from '../config/controls';
 import { Sfx } from '../audio/sfx';
 import { clamp, damp } from '../core/math';
-import { addTrauma, impact } from '../fx/juice';
+import { addTrauma, impact, knockout } from '../fx/juice';
 import { Burst } from '../fx/particles';
-import { spawnRing } from '../fx/vfx';
+import { spawnRing, spawnStreaks } from '../fx/vfx';
+import { legacyIntensity } from '../render/lights';
+import { announce } from '../ui/announcer';
 import type { Fighter } from './fighter';
 import { DASH, enterState } from './fsm';
 import { ACT, blankIntent, type Intent } from './intent';
-import { match } from './match';
+import { endRound, match } from './match';
 import { state } from './state';
 
 /*
@@ -17,14 +19,21 @@ import { state } from './state';
 
   Playtesting said the attacks are the least interesting thing in the duel and
   the movement is the part worth caring about, so this mode deletes everything
-  else. No punches, no kicks, no summons, no health. You win by putting the
-  other fighter off the edge of the stage using nothing but momentum — a
-  shoulder charge is a dash into a body, and the stage has no walls to save
-  anyone (see RINGOUT in config/constants.ts).
+  else. No punches, no kicks, no summons, no clock.
+
+  It is a game of tag. One fighter carries the ember and it burns them: their
+  bar drains for as long as they hold it. Touch the other fighter and it is
+  theirs. Burn all the way down and the round is lost. So one player is always
+  chasing and one is always running, and the walls turn every escape into a
+  question of how you get past someone who is coming at you.
+
+  (An earlier version ended rounds by knocking the other fighter off the edge
+  of the stage. It played badly — a round could end on one shove, or on
+  walking off by accident — so the walls are back and nobody can leave.)
 
   The four fighters are separated here by how they MOVE rather than by damage:
   weight decides who wins a collision, and each one gets a different answer to
-  "I am in the air and I want to be somewhere else".
+  "someone is in the way and I need to be on the other side of them".
 */
 
 export interface RushKit {
@@ -90,22 +99,47 @@ const SLAM = { fall: -26, range: 3.6, power: 17, lift: 5.5 } as const;
 /** How a launch bleeds off once its victim is back on their feet. */
 const SLIDE = { decel: 30, keep: 7 } as const;
 
+/*
+  The ember. Twelve seconds of carrying it burns a full bar, so a round is at
+  least that long and usually two or three times it. A pass locks the ember
+  for most of a second: without that, two fighters in contact hand it back and
+  forth every step and the one who touched first is decided by frame order.
+*/
+const EMBER = {
+  burn: 12,
+  lock: 0.9,
+  /** Pushboxes stop two bodies at MIN_GAP, so a touch is anything just past that. */
+  reach: MIN_GAP + 0.3,
+  /** Vertical overlap that still counts: clearing someone's head is how you get past them. */
+  height: 1.7,
+  /** Nobody burns while ROUND ONE … FIGHT! is still being called. */
+  grace: 1.25,
+  color: 0xFF8A2A,
+} as const;
+
 interface RushRuntime {
   jumpsLeft: number;
   airDashLeft: number;
   slamming: boolean;
   /** Speed a launch put into this fighter, while it still owns the slide. */
   slide: number;
+  /** In RUSH a fighter faces where they are going, not their opponent. */
+  face: number;
+  /** CPU only: a beat of indecision, so the bot can be caught and can be escaped. */
+  hesitate: number;
 }
 
 const runtime = new WeakMap<Fighter, RushRuntime>();
 const _v = new THREE.Vector3();
 let checkCooldown = 0;
+let holder: Fighter | null = null;
+let passLock = 0;
+let grace = 0;
 
 function rt(f: Fighter): RushRuntime {
   let r = runtime.get(f);
   if (!r) {
-    r = { jumpsLeft: 0, airDashLeft: 0, slamming: false, slide: 0 };
+    r = { jumpsLeft: 0, airDashLeft: 0, slamming: false, slide: 0, face: f.slot === 0 ? 1 : -1, hesitate: 0 };
     runtime.set(f, r);
   }
   return r;
@@ -115,9 +149,17 @@ export function rushKit(f: Fighter): RushKit {
   return RUSH_KITS[f.def.id] ?? DEFAULT_KIT;
 }
 
-/** Called when a round starts: nobody carries an air dash into a fresh stage. */
+/** Who is carrying the ember, for anything that wants to show it. */
+export function emberHolder(): Fighter | null {
+  return state.rush ? holder : null;
+}
+
+/** Called when a round starts: nobody carries an air dash into a fresh stage, and the ember alternates. */
 export function resetRush(): void {
   checkCooldown = 0;
+  passLock = 0;
+  grace = EMBER.grace;
+  holder = null;
   if (!state.fighters) return;
   for (const f of state.fighters) {
     const r = rt(f);
@@ -126,17 +168,25 @@ export function resetRush(): void {
     r.airDashLeft = kit.airDash;
     r.slamming = false;
     r.slide = 0;
+    r.face = f.slot === 0 ? 1 : -1;
+    r.hesitate = 0;
+    douse(f);
   }
+  if (state.rush) holder = state.fighters[(match.round + 1) % 2] ?? null;
 }
 
 /* Attacks do not exist in this mode. Stripping the intent rather than the state
    machine means the keyboard, pad, touch buttons and the CPU are all silenced
-   by one rule, and the duel's own code is left untouched. */
-export function stripAttacks(intent: Intent): void {
+   by one rule, and the duel's own code is left untouched. Down on the ground is
+   a block in the duel and would only root you to the spot here; in the air it
+   is still the slam. */
+export function stripAttacks(intent: Intent, f: Fighter): void {
   intent.punchDown = false;
   intent.kickDown = false;
   intent.assistDown = false;
   intent.powerDown = false;
+  intent.specialDown = false;
+  if (f.grounded) intent.block = false;
 }
 
 /*
@@ -147,6 +197,12 @@ export function stripAttacks(intent: Intent): void {
 export function stepRush(f: Fighter, intent: Intent, dt: number): void {
   const kit = rushKit(f);
   const r = rt(f);
+
+  /* Facing follows the stick. The duel turns a fighter to face their opponent
+     because every attack is aimed that way; with no attacks it only meant that
+     running away was a backwards shuffle, and running away is half this mode. */
+  if (f.state !== S.HITSTUN && f.state !== S.KO && intent.move) r.face = intent.move > 0 ? 1 : -1;
+  f.face = r.face;
 
   if (f.grounded) {
     r.jumpsLeft = kit.jumps - 1;
@@ -159,18 +215,16 @@ export function stepRush(f: Fighter, intent: Intent, dt: number): void {
   if (f.grounded && (f.state === S.IDLE || f.state === S.WALK) && f.dashTime <= 0) {
     if (kit.accel !== 1) f.vx = damp(f.vx, intent.move * top, (1 / MOVEMENT.accelTime) / kit.accel, dt);
     /* Only a fighter driving itself is held to its top speed. Clamping
-       unconditionally also clamped a knockback slide the moment hitstun ended,
-       which stopped a launched fighter dead a metre from the edge — in the one
-       mode where carried momentum is the whole game. Everything the player is
-       not steering keeps its speed and is bled off by drag instead. */
+       unconditionally also clamped a knockback slide the moment hitstun ended.
+       Everything the player is not steering keeps its speed and is bled off by
+       drag instead. */
     const driving = intent.move !== 0 && Math.sign(f.vx) === Math.sign(intent.move);
     if (driving && Math.abs(f.vx) > top) f.vx = Math.sign(f.vx) * top;
 
     /* Keep a launched fighter sliding. The duel brakes hard in IDLE — that is
        a courtesy to a player who let go of the stick — and it erased a body
-       check the moment hitstun ended, stopping people dead a stride from the
-       edge. While the slide is still faster than a walk and its owner is not
-       steering out of it, it decays on its own terms instead. */
+       check the moment hitstun ended. While the slide is still faster than a
+       walk and its owner is not steering out of it, it decays on its own terms. */
     if (r.slide > SLIDE.keep && !driving) {
       const decayed = r.slide - SLIDE.decel * dt;
       r.slide = Math.max(0, decayed);
@@ -188,19 +242,21 @@ export function stepRush(f: Fighter, intent: Intent, dt: number): void {
 
     /* Extra air steering, on top of the duel's own air control. It may only ever
        ADD speed toward where you are pointing: steering into your own air dash
-       or a launch used to brake it, which made every airborne moment feel the
-       same. Momentum is the whole game here, so nothing but gravity slows you. */
+       or a launch used to brake it, which made every airborne moment feel the same. */
     if (intent.move && kit.airCtl !== 1) {
       const target = intent.move * top * MOVEMENT.airControl * kit.airCtl;
       const faster = Math.sign(f.vx) === Math.sign(target) && Math.abs(f.vx) >= Math.abs(target);
       if (!faster) f.vx = damp(f.vx, target, 1 / MOVEMENT.airAccelTime, dt);
     }
 
-    // double / triple jump
+    // double / triple jump, each one a front flip
     if (intent.jumpDown && r.jumpsLeft > 0) {
       r.jumpsLeft--;
       f.vy = f.def.jump * 0.92;
       f.jumpReleased = false;
+      f.flip = 0.001;
+      f.flipDir = 1;
+      f.flipTime = 0.42;
       intent.jumpDown = false;
       intent.consumed |= ACT.JUMP;
       Burst.emit(_v.set(f.x, f.y + 0.6, PLANE_Z), f.def.accent, 10, 3.2, 0.5);
@@ -208,15 +264,17 @@ export function stepRush(f: Fighter, intent: Intent, dt: number): void {
       Sfx.dash(f.x);
     }
 
-    // air dash: the glider's way out of trouble, and its best approach
+    // air dash: the glider's way over someone, and its best approach
     if (intent.dash && r.airDashLeft > 0) {
       r.airDashLeft--;
       f.vx = intent.dash * DASH.speed * kit.dashMul * 1.05;
       f.vy = Math.max(f.vy, 1.4);
-      f.face = intent.dash > 0 ? 1 : -1;
+      r.face = f.face = intent.dash > 0 ? 1 : -1;
+      f.zip = 1;
       intent.dash = 0;
       intent.consumed |= ACT.DASH;
       Burst.emit(_v.set(f.x, f.y + 1.0, PLANE_Z), f.def.accent, 14, 4.4, 0.45);
+      spawnStreaks(_v.set(f.x, f.y + 1.4, PLANE_Z), -f.face, f.def.accent, 6);
       Sfx.dash(f.x);
     }
 
@@ -236,6 +294,7 @@ export function stepRush(f: Fighter, intent: Intent, dt: number): void {
 /** A slam landing shoves whoever is standing near the crater. */
 function landSlam(f: Fighter, kit: RushKit): void {
   rt(f).slamming = false;
+  f.land = 1;                                      // the deepest squash there is
   addTrauma(0.32);
   Burst.emit(_v.set(f.x, 0.2, PLANE_Z), f.def.accent, 34, 7.5, 0.7);
   spawnRing(_v.set(f.x, 0.25, PLANE_Z), 0xFFE2A8);
@@ -254,43 +313,135 @@ function landSlam(f: Fighter, kit: RushKit): void {
   impact('heavy', { victim: foe.slot === 0 ? 0 : 1, scale: 1.1 });
 }
 
+/* ── the ember ─────────────────────────────────────────────────────────── */
+
+function touching(a: Fighter, b: Fighter): boolean {
+  return Math.abs(a.x - b.x) <= EMBER.reach && Math.abs(a.y - b.y) < EMBER.height;
+}
+
+/** The fighter's own light goes back to their colour and off. */
+function douse(f: Fighter): void {
+  f.powerLight.intensity = 0;
+  f.powerLight.color.setHex(f.def.accent);
+}
+
+function passEmber(from: Fighter, to: Fighter): void {
+  holder = to;
+  passLock = EMBER.lock;
+  douse(from);
+  _v.set((from.x + to.x) / 2, 1.5, PLANE_Z);
+  Burst.emit(_v, EMBER.color, 28, 6, 0.55);
+  spawnRing(_v, 0xFFC46B);
+  impact('light', { victim: to.slot === 0 ? 0 : 1 });
+  Sfx.hit(0.7, _v.x);
+  match.lastTrade = `${from.def.name} → TAG`;
+  announce('TAG!', 650, 'toast');
+}
+
+function burnOut(f: Fighter): void {
+  f.hp = 0;
+  douse(f);
+  enterState(f, S.KO);
+  knockout(f);
+  Burst.emit(_v.set(f.x, 1.4, PLANE_Z), EMBER.color, 60, 8, 0.8);
+  endRound(state.fighters.find((o) => o !== f) ?? null, 'BURNED OUT');
+}
+
+/*
+  One step of the ember: pass it on contact, burn whoever still has it. Runs
+  after the physics step, on the positions this step actually ended at.
+*/
+export function stepEmber(dt: number): void {
+  if (!holder || match.over) return;
+  const other = state.fighters.find((f) => f !== holder);
+  if (!other) return;
+
+  passLock = Math.max(0, passLock - dt);
+  if (passLock <= 0 && other.state !== S.KO && touching(holder, other)) passEmber(holder, other);
+
+  const h = holder;
+  const heat = 1 - h.hp / 100;
+  h.powerLight.color.setHex(EMBER.color);
+  h.powerLight.distance = 7;
+  h.powerLight.intensity = legacyIntensity(1.6 + heat * 2.2 + Math.sin(state.elapsed * 17) * 0.5);
+  // embers stream off the carrier, thicker the closer they are to burning out
+  if (Math.random() < 0.45 + heat * 0.5) {
+    _v.set(h.x + (Math.random() - 0.5) * 0.7, h.y + 0.9 + Math.random() * 1.4, PLANE_Z);
+    Burst.emit(_v, Math.random() < 0.3 ? 0xFFD27A : EMBER.color, 1, 1.4 + heat, 0.5);
+  }
+
+  if (grace > 0) {
+    grace -= dt;
+    return;
+  }
+  h.hp = Math.max(0, h.hp - (100 / EMBER.burn) * dt);
+  if (h.hp <= 0) burnOut(h);
+}
+
 /*
   The CPU in RUSH. The duel's bot is a fighting-game brain — spacing, strings,
-  reaction blocks — and none of that exists in this mode, so this one is
-  deliberately small: walk at them, charge when close, and above all do not
-  walk off the stage. Edge awareness comes first, because a CPU that rings
-  itself out is not a test of anything.
+  reaction blocks — and none of that exists in this mode, so this one is small.
+  Carrying the ember it chases, and spends whatever its kit has to close the
+  last metre. Without it, it runs; and when the wall is behind it, it goes over
+  the top of you the way its kit allows. It hesitates now and then, which is
+  what makes it catchable.
 */
-export function rushBotIntent(f: Fighter, foe: Fighter): Intent {
+export function rushBotIntent(f: Fighter, foe: Fighter, dt: number): Intent {
   const i = blankIntent();
   if (match.over || f.state === S.KO || f.state === S.HITSTUN) return i;
 
-  const own = Math.sign(f.x) || 1;
+  const r = rt(f);
+  const kit = rushKit(f);
   const gap = foe.x - f.x;
-  const dir: 1 | -1 = gap >= 0 ? 1 : -1;
+  const toward: 1 | -1 = gap >= 0 ? 1 : -1;
   const dist = Math.abs(gap);
 
-  // thrown off the stage: steer back, and spend a jump if the kit has one
-  if (Math.abs(f.x) > BOUND - 0.5) {
-    i.move = -own;
-    if (!f.grounded) {
+  if (r.hesitate > 0) {
+    r.hesitate -= dt;
+    return i;
+  }
+
+  if (holder === f) {
+    // chase — but not straight back into the one who just passed it: the lock would make that a gift
+    i.move = passLock > 0 && dist < 3 ? 0 : toward;
+    if (passLock <= 0 && dist < 3.8 && f.grounded && f.dashCd <= 0 && Math.random() < 0.2) i.dash = toward;
+    // they went up: follow them up
+    if (foe.y > f.y + 1 && dist < 4.5) {
       i.jumpHeld = true;
-      if (f.vy < 0) i.jumpDown = true;
+      if (f.grounded || (f.vy < 0 && r.jumpsLeft > 0)) i.jumpDown = true;
     }
+    if (!f.grounded && r.airDashLeft > 0 && dist < 5 && dist > 1.6) i.dash = toward;
+    // the heavies drop on you from above
+    if (kit.slam && !f.grounded && dist < 2.2 && f.y > foe.y + 0.8) i.block = true;
+    if (Math.random() < 0.004) r.hesitate = 0.2 + Math.random() * 0.25;
     return i;
   }
 
-  // backed up near the edge: stop retreating and meet them instead
-  if (Math.abs(f.x) > BOUND - 2.6 && dir === own) {
-    i.move = -own;
-    if (dist < 3.0 && f.grounded && f.dashCd <= 0) i.dash = -own;
+  const away: 1 | -1 = toward === 1 ? -1 : 1;
+  const behind = away > 0 ? BOUND - f.x : f.x + BOUND;
+
+  /* Nobody near: stand off, but not in a corner — that is where a chase ends.
+     The gap between running and standing is wide on purpose; one threshold
+     had the bot twitching back and forth across it. */
+  if (dist > 8) {
+    i.move = Math.abs(f.x) > 6 ? (f.x > 0 ? -1 : 1) : 0;
+    return i;
+  }
+  if (dist > 6 && f.grounded && Math.abs(foe.vx) < 2) return i;
+
+  // the wall is behind: go over the top of them
+  if (behind < 2.8) {
+    i.move = toward;
+    i.jumpHeld = true;
+    if (f.grounded && dist < 4.2 + Math.random()) i.jumpDown = true;
+    else if (!f.grounded && f.vy < 1.2 && r.jumpsLeft > 0) i.jumpDown = true;
+    if (!f.grounded && r.airDashLeft > 0 && f.y > 1.6) i.dash = toward;
     return i;
   }
 
-  i.move = dir;
-  if (dist < 3.4 && f.grounded && f.dashCd <= 0) i.dash = dir;
-  // hop over an incoming charge now and then, so it is not a pure walk-in
-  if (dist < 2.4 && Math.abs(foe.vx) > 10 && f.grounded && Math.random() < 0.09) i.jumpDown = true;
+  i.move = away;
+  if (dist < 2.6 && f.grounded && f.dashCd <= 0 && Math.random() < 0.35) i.dash = away;
+  if (Math.random() < 0.006) r.hesitate = 0.18 + Math.random() * 0.3;
   return i;
 }
 
@@ -299,7 +450,8 @@ export function rushBotIntent(f: Fighter, foe: Fighter): Intent {
   movement.ts; this asks whether the overlap arrived fast enough to count as a
   hit. The faster body wins, scaled by the two weights, so a charging Bronzemaw
   runs through a walking Nocturne and a dashing Nocturne still moves a standing
-  one — but only just.
+  one — but only just. In tag it is the tagger's follow-through: the ember
+  changes hands on the touch, and the check throws its new carrier clear.
 */
 export function resolveBodyCheck(P1: Fighter, P2: Fighter, dt: number): void {
   checkCooldown = Math.max(0, checkCooldown - dt);

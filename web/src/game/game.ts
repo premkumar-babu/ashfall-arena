@@ -16,11 +16,16 @@ import { stepKeyLegend, syncHud } from '../ui/hud';
 import { stepPadMenu } from '../ui/pad-menu';
 import { updateAmbience } from '../world/ambience';
 import { stepAssist } from './assist';
-import { botIntent, keepBotOnStage } from './bot';
-import { checkRingOut, resolveAssist, resolveCombat, settleKO, syncAssistBoxes, syncBoxes } from './collision';
+import { botIntent } from './bot';
+import { resolveAssist, resolveCombat, settleKO, syncAssistBoxes, syncBoxes } from './collision';
+import { finishBotIntent, finishing, finishVictim, finishWinner, inFatality, paintFinish, stepFinish } from './finish';
+import { blankIntent } from './intent';
 import { stepState } from './fsm';
-import { endRound, match, stepCombo } from './match';
-import { resolveBodyCheck, rushBotIntent, stepRush, stripAttacks } from './rush';
+import { endRound, match, stepCombo, stepHold } from './match';
+import { resolveBodyCheck, rushBotIntent, stepEmber, stepRush, stripAttacks } from './rush';
+import { stepSpecials } from './specials';
+import { inFatalBlow, stepFatalBlow } from './fatalblow';
+import { stepThrows } from './throws';
 import { stepMeter } from './meter';
 import { planMotion, resolveMotion } from './movement';
 import { poseFighter, stageSelectPreview } from './pose';
@@ -55,10 +60,17 @@ export function simulate(dt: number): void {
     return;
   }
 
-  // paused: nothing steps, and nothing pressed behind the pause card is kept
-  if (match.paused) {
+  // paused, or the match intro is playing: nothing steps, and nothing pressed behind it is kept
+  if (match.paused || (match.hold > 0 && stepHold(dt))) {
     physics?.hold();
     endInputStep();
+    if (!match.paused) {
+      // the intro shots still want the fighters posed and breathing
+      poseFighter(state.P1, dt, t);
+      poseFighter(state.P2, dt, t);
+      driveMixer(state.P1, dt, t);
+      driveMixer(state.P2, dt, t);
+    }
     return;
   }
 
@@ -77,8 +89,10 @@ export function simulate(dt: number): void {
     return;
   }
 
-  // RUSH is not played against a clock: the round ends when someone goes off the edge
-  if (!match.over && !state.rush) {
+  // RUSH is not played against a clock: the round ends when someone burns out.
+  // FINISH THEM stops it too — the loser is already beaten.
+  const fin = finishing();
+  if (!match.over && !state.rush && !fin && !inFatalBlow()) {
     match.time = Math.max(0, match.time - dt);
     if (match.time === 0) {
       const lead = P1.hp === P2.hp ? null : P1.hp > P2.hp ? P1 : P2;
@@ -86,16 +100,28 @@ export function simulate(dt: number): void {
     }
   }
 
-  const i1 = controllers[0].intent();
-  const i2 = versus ? controllers[1].intent() : state.rush ? rushBotIntent(P2, P1) : botIntent(P2, P1, dt);
-  if (!versus) keepBotOnStage(P2, i2);             // the stage has no walls to stop a retreat any more
+  let i1 = controllers[0].intent();
+  let i2 = versus ? controllers[1].intent() : state.rush ? rushBotIntent(P2, P1, dt) : botIntent(P2, P1, dt);
+  if (fin) {
+    // the loser is out on their feet; a CPU winner has its own idea of what comes next
+    if (finishVictim() === P1) i1 = blankIntent();
+    if (finishVictim() === P2) i2 = blankIntent();
+    if (!versus && finishWinner() === P2) i2 = finishBotIntent(P2, P1);
+  }
+  if (inFatality() || inFatalBlow()) {
+    // a cinematic is playing: nobody has the controls
+    i1 = blankIntent();
+    i2 = blankIntent();
+  }
   // RUSH has no attacks at all: silencing the intent silences every input device and the CPU at once
-  if (state.rush) { stripAttacks(i1); stripAttacks(i2); }
+  if (state.rush) { stripAttacks(i1, P1); stripAttacks(i2, P2); }
   stepKeyLegend(dt, i1.punchDown || i1.kickDown || i1.dash !== 0);
 
   stepState(P1, i1, dt);
   stepState(P2, i2, dt);
-  if (!state.rush) {
+  // OVERDRIVE is the fatality button while someone is waiting to be finished
+  stepFinish(i1, i2, dt);
+  if (!state.rush && !fin) {
     stepMeter(P1, i1, P2, dt);
     stepMeter(P2, i2, P1, dt);
   }
@@ -106,18 +132,28 @@ export function simulate(dt: number): void {
   stepCombo(P1, dt);
   stepCombo(P2, dt);
 
-  // velocities from the game's rules, then positions from the physics world
-  planMotion(P1, i1, P2, dt);
-  planMotion(P2, i2, P1, dt);
-  if (state.rush) {
-    // per-character movement kits, then body-to-body checks, before anything is moved
-    stepRush(P1, i1, dt);
-    stepRush(P2, i2, dt);
-    resolveBodyCheck(P1, P2, dt);
+  // velocities from the game's rules, then positions from the physics world;
+  // a fatality places both fighters itself
+  if (inFatalBlow()) {
+    stepFatalBlow(dt);                            // the fatal blow's cinematic holds both fighters where they are
+  } else if (!inFatality()) {
+    planMotion(P1, i1, P2, dt);
+    planMotion(P2, i2, P1, dt);
+    if (!state.rush) {
+      stepSpecials(dt);                           // bolts fly, spears bite, a charge holds its speed
+      stepFatalBlow(dt);                          // a fatal blow lunges, and connects or does not
+      stepThrows(dt);                             // a throw carries its victim over the shoulder
+    }
+    if (state.rush) {
+      // per-character movement kits, then body-to-body checks, before anything is moved
+      stepRush(P1, i1, dt);
+      stepRush(P2, i2, dt);
+      resolveBodyCheck(P1, P2, dt);
+    }
+    resolveMotion(P1, P2, dt);
   }
-  resolveMotion(P1, P2, dt);
   if (physics) physics.step();
-  checkRingOut();                                  // the stage edge is a losing line, not a wall
+  if (state.rush) stepEmber(dt);                   // tag on the positions this step ended at, then burn
 
   if (!state.rush) {
     stepAssist(P1.assist, P2, dt, t);
@@ -128,6 +164,7 @@ export function simulate(dt: number): void {
   poseFighter(P2, dt, t);
   driveMixer(P1, dt, t);
   driveMixer(P2, dt, t);
+  paintFinish();
   driveAssistMixer(P1.assist, dt);
   driveAssistMixer(P2.assist, dt);
 
@@ -176,7 +213,8 @@ export function present(alpha: number, frameDt: number): void {
       // paused: keep the frozen frame on screen and nothing else
       if (!match.paused) {
         updateCameraFight(frameDt);             // shake keeps running through hit-stop
-        post?.setFocus(camera.position.distanceTo(_focus.set(rigState.mid, 1.7, PLANE_Z)), 28, 1.1);
+        // the fighters sharp, the stage behind them soft: range is how deep the sharp band runs
+        post?.setFocus(camera.position.distanceTo(_focus.set(rigState.mid, 1.7, PLANE_Z)), 9, 1.5);
         if (match.freeze <= 0) {
           // particles and drifting motes slow down with a KO's slow motion
           updateAmbience(frameDt * presentScale(), t);

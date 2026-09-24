@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { GROUND, METER, PAL, S, SPAWN_X, type FighterState, type Move } from '../config/constants';
 import type { FighterDef } from '../config/roster';
-import type { ActionMap, BoneRig } from '../anim/types';
+import type { ActionMap, AnimSlot, BoneRig } from '../anim/types';
 import type { CharacterBody } from '../physics/port';
 import { createTrail, type Trail } from '../fx/particles';
 import { makeAura } from '../fx/vfx';
@@ -11,6 +11,27 @@ import { scene } from '../render/stage';
 import type { Assist } from './assist-rig';
 import { createBrain, type Brain } from './brain';
 import { makeVolume, type Volume } from './volumes';
+
+/*
+  One glow light per player slot, shared by every rig that can stand in it, and
+  parked in the scene rather than inside the rig. WebGPU compiles the scene's
+  set of lights into every lit material: a light inside a rig came and went
+  with the rig's visibility, and each change recompiled everything — a freeze
+  of two to four seconds every time a match started or the camera found a new
+  fighter. Two lights that never leave keep the set fixed. The pose puts each
+  one on its fighter every step.
+*/
+const slotLights: THREE.PointLight[] = [];
+
+function slotLight(slot: number, color: number): THREE.PointLight {
+  let L = slotLights[slot];
+  if (!L) {
+    L = pointLight(color, 0, 11);
+    slotLights[slot] = L;
+  }
+  if (L.parent !== scene) scene.add(L);
+  return L;
+}
 
 export interface ArmRig {
   readonly shoulder: THREE.Group;
@@ -53,6 +74,9 @@ export interface Fighter {
   // ── primitive rig ──
   readonly root: THREE.Group;
   readonly body: THREE.Group;
+  /** The loaded model hangs off these two: lean pivots at the feet, spin about the waist. */
+  readonly lean: THREE.Group;
+  readonly spin: THREE.Group;
   readonly torso: THREE.Group;
   readonly neck: THREE.Group;
   readonly armF: ArmRig;
@@ -93,6 +117,34 @@ export interface Fighter {
   land: number;
   hitDir: number;
 
+  // ── body language: read by the pose and the mixer, never by the rules ──
+  /** Last step's velocity and a smoothed acceleration, for leaning into a start and back out of a stop. */
+  prevVx: number;
+  accel: number;
+  /** A flip in progress, 0 → 1; 0 when not flipping. Direction +1 is a front flip. */
+  flip: number;
+  flipDir: number;
+  flipTime: number;
+  /** Launched into the air by a hit: tumbling now, and a knockdown when they land. */
+  launched: boolean;
+  /** Follow-up hits taken in the air since the launch. */
+  juggles: number;
+  /** Seconds left on the floor after a knockdown. */
+  downT: number;
+  /** Standing with an empty bar, waiting to be finished. */
+  dazed: boolean;
+  /** Damage dealt by the string in progress, for the combo counter. */
+  comboDmg: number;
+  /** How far the body has dropped into a low move, 0 → 1. */
+  crouch: number;
+  /** An air dash's stretch, decaying from 1. */
+  zip: number;
+  /** Seconds of landing clip left to show. */
+  landT: number;
+  wasAir: boolean;
+  /** Which of walk and run is showing, held with hysteresis so the blend does not chatter at the boundary. */
+  running: boolean;
+
   // ── movement ──
   dashTime: number;
   dashCd: number;
@@ -130,7 +182,7 @@ export interface Fighter {
   currentAction: THREE.AnimationAction | null;
   boneRig: BoneRig | null;
   /** Slots filled by a guess rather than a matched clip, which the shared library may replace. */
-  standIn: Partial<Record<FighterState, boolean>>;
+  standIn: Partial<Record<AnimSlot, boolean>>;
   libBound: boolean;
 
   // ── feel ──
@@ -169,10 +221,12 @@ export function createFighter(def: FighterDef, slot: number): Fighter {
   root.visible = false;
   const body = new THREE.Group();
   root.add(body);
+  const lean = new THREE.Group();
+  const spin = new THREE.Group();
+  root.add(lean);
+  lean.add(spin);
 
-  const powerLight = pointLight(def.accent, 0, 11);
-  powerLight.position.set(0, 1.9, 0);
-  root.add(powerLight);
+  const powerLight = slotLight(slot, def.accent);
 
   const hips = new THREE.Mesh(new THREE.BoxGeometry(0.62 * bulk, 0.40, 0.42), cloth);
   hips.position.y = 1.52;
@@ -473,7 +527,7 @@ export function createFighter(def: FighterDef, slot: number): Fighter {
   root.add(aura);
 
   return {
-    def, slot, root, body, torso, neck,
+    def, slot, root, body, lean, spin, torso, neck,
     armF, armB, legF, legB, cape, blob,
     glow, skin, powerLight,
     trail: createTrail(def.accent),
@@ -487,6 +541,8 @@ export function createFighter(def: FighterDef, slot: number): Fighter {
     state: S.IDLE, stateTime: 0, move: null,
     hitLanded: false, activeHitbox: null, stunTime: 0,
     lockFace: 0, airMove: false, land: 0, hitDir: 0,
+    prevVx: 0, accel: 0, flip: 0, flipDir: 1, flipTime: 0.42, zip: 0, landT: 0, wasAir: false, running: false,
+    launched: false, juggles: 0, downT: 0, dazed: false, crouch: 0, comboDmg: 0,
     dashTime: 0, dashCd: 0, dashDir: 1,
     airTime: 0, jumpReleased: true,
 

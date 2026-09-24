@@ -22,6 +22,10 @@ export const settings = {
   level: 'high' as Quality,
   shakeOn: true,
   bloomOn: true,
+  /** Blood sprays and pools. */
+  goreOn: true,
+  /** The spoken announcer. */
+  voiceOn: true,
   /** A remembered mute, held until PLAY supplies the user gesture audio needs. */
   wantSfx: undefined as boolean | undefined,
   /** Remembered music, started by the same gesture. */
@@ -31,7 +35,7 @@ export const settings = {
 /** What RESET TO DEFAULTS restores. */
 export const DEFAULTS = {
   volMaster: 0.5, volSfx: 1, volMusic: 0.7, volAmb: 0.6, quality: 'auto' as QualityChoice,
-  post: true, bloom: true, shake: true, haptics: true,
+  post: true, bloom: true, shake: true, haptics: true, gore: true, voice: true,
 } as const;
 
 export interface StoredSettings {
@@ -46,6 +50,8 @@ export interface StoredSettings {
   volMusic?: number;
   volAmb?: number;
   haptics?: boolean;
+  gore?: boolean;
+  voice?: boolean;
 }
 
 const SETTINGS_KEY = 'ashfall.settings';

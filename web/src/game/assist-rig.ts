@@ -1,7 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { A, PAL, type AssistState, type FighterState } from '../config/constants';
 import type { AssistDef } from '../config/roster';
-import type { ActionMap } from '../anim/types';
+import type { ActionMap, AnimSlot } from '../anim/types';
 import { createTrail, type Trail } from '../fx/particles';
 import { makePortal, makeScorch, type Portal, type Scorch } from '../fx/vfx';
 import { pointLight } from '../render/lights';
@@ -30,7 +30,7 @@ export interface Assist {
   mixer: THREE.AnimationMixer | null;
   actions: ActionMap | null;
   currentAction: THREE.AnimationAction | null;
-  standIn: Partial<Record<FighterState, boolean>>;
+  standIn: Partial<Record<AnimSlot, boolean>>;
   libBound: boolean;
   readonly wave: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>;
   readonly orb: THREE.Group;

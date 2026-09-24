@@ -9,7 +9,7 @@ import { queryFlag } from '../core/platform';
 import type { Viewport } from '../core/resize';
 import type { PerfMonitor } from '../core/stats';
 import { isDifficulty, setDifficulty } from '../game/bot';
-import { hideResults, match, returnToSelect, startMatch } from '../game/match';
+import { hideResults, match, returnToSelect, skipIntro, startMatch } from '../game/match';
 import { state, type Difficulty } from '../game/state';
 import { debugBoxesOn, setDebugBoxes } from '../game/volumes';
 import { startAmbience } from '../fx/juice';
@@ -214,7 +214,7 @@ function setQuality(choice: QualityChoice): void {
 function saveSettings(): void {
   writeSettings({
     sfx: Sfx.on, music: Music.playing, post: post?.enabled ?? false,
-    quality: settings.quality, shake: settings.shakeOn, bloom: settings.bloomOn,
+    quality: settings.quality, shake: settings.shakeOn, bloom: settings.bloomOn, gore: settings.goreOn, voice: settings.voiceOn,
     volMaster: Sfx.masterVol, volSfx: Sfx.sfxVol, volMusic: Music.vol, volAmb: Sfx.ambVol, haptics: haptics.on,
   });
 }
@@ -250,6 +250,8 @@ function syncSettingsUI(): void {
   setSwitch('swPost', post?.enabled ?? false);
   setSwitch('swBloom', settings.bloomOn);
   setSwitch('swShake', settings.shakeOn);
+  setSwitch('swGore', settings.goreOn);
+  setSwitch('swVoice', settings.voiceOn);
   setSwitch('swHaptic', haptics.on);
   syncSlider('volMaster', Sfx.masterVol);
   syncSlider('volSfx', Sfx.sfxVol);
@@ -269,6 +271,8 @@ function resetSettings(): void {
   setPost(DEFAULTS.post);
   setBloom(DEFAULTS.bloom);
   settings.shakeOn = DEFAULTS.shake;
+  settings.goreOn = DEFAULTS.gore;
+  settings.voiceOn = DEFAULTS.voice;
   haptics.on = DEFAULTS.haptics;
   syncSettingsUI();
   saveSettings();
@@ -478,12 +482,19 @@ function leaveResultsToSelect(): void {
 
 /* ── keyboard ───────────────────────────────────────────────────────── */
 
+// a tap during the match intro skips it, as a key does
+window.addEventListener('pointerdown', () => {
+  if (state.phase === PHASE.FIGHT) skipIntro();
+});
+
 function onGameKey(ev: KeyboardEvent): void {
   if (SWALLOW.has(ev.code)) ev.preventDefault();
   Sfx.init();
+  if (state.phase === PHASE.FIGHT && !ev.repeat && ev.code !== 'Escape') skipIntro();
   if (!ev.repeat) {
     switch (ev.code) {
-      case 'KeyB': toggleDebug(); break;
+      // collision wireframes are a developer view, never a stray keypress mid-fight
+      case 'KeyB': if (DEV_TOOLS) toggleDebug(); break;
       case 'KeyM': Sfx.toggle(); break;
       case 'KeyP': setPost(!post?.enabled); break;
       case 'KeyC': announce('CAMERA · ' + cycleCamView(), 900, 'toast'); break;
@@ -716,6 +727,8 @@ export function wireFrontEnd({ disposer, viewport, perf }: FrontEndContext): voi
   const stored = loadSettings();
   if (isQualityChoice(stored.quality)) settings.quality = stored.quality;
   if (typeof stored.shake === 'boolean') settings.shakeOn = stored.shake;
+  if (typeof stored.gore === 'boolean') settings.goreOn = stored.gore;
+  if (typeof stored.voice === 'boolean') settings.voiceOn = stored.voice;
   if (typeof stored.volMaster === 'number') Sfx.setMaster(stored.volMaster);
   if (typeof stored.volSfx === 'number') Sfx.setSfx(stored.volSfx);
   if (typeof stored.volMusic === 'number') Music.setVolume(stored.volMusic);
@@ -795,6 +808,8 @@ export function wireFrontEnd({ disposer, viewport, perf }: FrontEndContext): voi
   click('swMusic', () => { Music.toggle(); setSwitch('swMusic', Music.playing); Sfx.ui(); saveSettings(); });
   click('swPost', () => { setPost(!post?.enabled); setSwitch('swPost', post?.enabled ?? false); Sfx.ui(); saveSettings(); });
   click('swShake', () => { settings.shakeOn = !settings.shakeOn; setSwitch('swShake', settings.shakeOn); Sfx.ui(); saveSettings(); });
+  click('swGore', () => { settings.goreOn = !settings.goreOn; setSwitch('swGore', settings.goreOn); Sfx.ui(); saveSettings(); });
+  click('swVoice', () => { settings.voiceOn = !settings.voiceOn; setSwitch('swVoice', settings.voiceOn); Sfx.ui(); saveSettings(); });
   click('swBloom', () => { setBloom(!settings.bloomOn); setSwitch('swBloom', settings.bloomOn); Sfx.ui(); saveSettings(); });
   click('swHaptic', () => {
     haptics.on = !haptics.on;

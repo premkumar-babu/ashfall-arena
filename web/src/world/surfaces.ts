@@ -53,6 +53,14 @@ export function syncFloorTex(): void {
   }
   if (nor) m.normalScale.setScalar(T.normalScale ?? 1);
 
+  /* Gloss follows what the floor is made of. One wet-stone value for all of
+     them turned every low light into a blown-out smear on boards and tiles:
+     SUNDOWN's sun behind the stage became a pillar of white between the
+     fighters, and each lantern left a hot pool in the foreground. Slate keeps
+     its sheen — its roughness map breaks the reflection into wet joints. */
+  m.roughness = slate ? 0.5 : T.plank ? 0.64 : 0.56;
+  m.metalness = slate ? 0.05 : 0;
+
   if (dirty) m.needsUpdate = true;     // a map swap relinks the program
 }
 

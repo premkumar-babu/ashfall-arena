@@ -1,8 +1,8 @@
 import * as THREE from 'three/webgpu';
-import { BLOCK_BLUE, HIT_RED, PLANE_Z, S } from '../config/constants';
+import { BLOCK_BLUE, HIT_RED, MOVES, PLANE_Z, S } from '../config/constants';
 import { driveMixer, playAction } from '../anim/animation';
 import { SELECT_CAM } from '../camera/camera-rig';
-import { clamp, damp } from '../core/math';
+import { clamp, damp, easeOut } from '../core/math';
 import { Burst } from '../fx/particles';
 import { ageSwingRibbon, pushSwingRibbon } from '../fx/ribbon';
 import { legacyIntensity } from '../render/lights';
@@ -33,17 +33,121 @@ function applySquash(f: Fighter, dt: number): void {
   if (f.land > 0) f.land = Math.max(0, f.land - dt * 6.2);
   const sq = f.land * 0.155;
   const air = f.grounded ? 0 : clamp(-f.vy / 26, -0.06, 0.085);
-  const sy = 1 - sq + air;
+  const sy = 1 - sq + air - f.zip * 0.08;
   const sx = 1 + sq * 0.68 - air * 0.55;
+  // an air dash stretches the body along its own forward axis
+  const sz = sx + f.zip * 0.22;
   f.body.scale.set(sx, sy, sx);
-  if (f.model && f.modelFit) f.model.scale.set(f.modelFit * sx, f.modelFit * sy, f.modelFit * sx);
+  if (f.model && f.modelFit) f.model.scale.set(f.modelFit * sx, f.modelFit * sy, f.modelFit * sz);
+}
+
+/*
+  Body language on the loaded model. The clips know how to walk, run and
+  fall; they do not know the fighter has just shoved off, is braking hard, or
+  has spun into a third jump. Those ride on two pivots between the root and the
+  model: lean tips the whole body from the feet — into a start, back out of a
+  stop, forward into a dash — and spin turns it about the waist for a flip.
+  Neither touches the root, so footing, hitboxes and the camera never see them.
+*/
+const SPIN_PIVOT = 1.35;           // waist height of a 3.2-unit fighter
+const FLIP_TIME = 0.42;
+const _dust = new THREE.Vector3();
+
+function bodyLanguage(f: Fighter, dt: number): void {
+  const a = dt > 0 ? (f.vx - f.prevVx) / dt : 0;
+  f.prevVx = f.vx;
+  f.accel = damp(f.accel, clamp(a, -140, 140), 14, dt);
+
+  const fwd = f.face;
+  const pace = clamp((f.vx * fwd) / f.def.speed, -1, 1.8);   // + when moving the way they face
+  const t = state.elapsed;
+  let pitch = 0;
+  let roll = 0;
+  let drop = 0;
+  if (f.downT > 0) f.downT = Math.max(0, f.downT - dt);
+  if (f.dazed) {
+    // standing on nothing: a slow, sick sway
+    pitch = -0.1 + Math.sin(t * 2.3) * 0.11;
+    roll = Math.sin(t * 1.55) * 0.16;
+  } else if (f.downT > 0) {
+    pitch = -1.42;                                           // flat on their back, then up
+  } else if (f.state === S.PUNCH && f.move === MOVES.UPPERCUT) {
+    pitch = -0.3 * clamp(f.stateTime / (f.move.startup + 0.05), 0, 1);   // the whole body rises into it
+    drop = f.stateTime < f.move.startup ? 0.55 : 0;          // down low first, then up
+  } else if (f.state === S.KICK && f.move === MOVES.SWEEP) {
+    pitch = 0.22;
+    drop = 1;
+  } else if (f.state === S.HITSTUN && f.grounded && !f.launched) {
+    // the blow snaps them back from where it came, then they recover over a quarter second
+    const snap = 1 - clamp(f.stateTime / 0.28, 0, 1);
+    pitch = (f.hitDir * f.face > 0 ? 0.22 : -0.34) * snap * snap;
+  } else if ((f.state === S.PUNCH || f.state === S.KICK) && f.move) {
+    // weight behind a swing: a small draw back, the body driving through the blow, then settle
+    const m = f.move;
+    const t = f.stateTime;
+    if (t < m.startup) pitch = -0.07 * (t / m.startup);
+    else if (t < m.startup + m.active) pitch = f.move === MOVES.KICK ? 0.1 : 0.16;
+    else pitch = 0.12 * (1 - clamp((t - m.startup - m.active) / m.recovery, 0, 1));
+  } else if (f.state === S.KO || f.state === S.HITSTUN) {
+    pitch = 0;                                               // those clips carry their own weight
+  } else if (f.grounded) {
+    pitch = clamp(f.accel * fwd * 0.0042, -0.26, 0.26) + pace * 0.07 + (f.dashTime > 0 ? 0.2 : 0);
+    // a hard stop or turn at speed kicks up dust at the heels
+    const braking = Math.abs(f.vx) > 3.5 && Math.sign(f.accel) !== Math.sign(f.vx) && Math.abs(f.accel) > 35;
+    if (braking && Math.random() < 0.5) {
+      Burst.emit(_dust.set(f.x + Math.sign(f.vx) * 0.3, 0.12, PLANE_Z), 0xC9BCA2, 2, 2.2, 0.45);
+    }
+  } else {
+    pitch = clamp(-f.vy * 0.01, -0.1, 0.14) + pace * 0.05;
+  }
+  pitch += f.zip * 0.5;
+  f.lean.rotation.x = damp(f.lean.rotation.x, pitch, f.downT > 0 ? 11 : 16, dt);
+  f.lean.rotation.z = damp(f.lean.rotation.z, roll, 6, dt);
+  f.crouch = damp(f.crouch, drop, 22, dt);
+
+  /* A flip: one turn about the waist, front or back. RUSH's extra jumps are
+     quick; a jump in the duel turns over its whole arc; a launched fighter
+     tumbles backward for the length of the flight. */
+  let angle = 0;
+  if (f.flip > 0) {
+    f.flip = Math.min(1, f.flip + dt / (f.flipTime || FLIP_TIME));
+    angle = easeOut(f.flip) * Math.PI * 2 * (f.flipDir || 1);
+    const cut = f.state === S.KO || f.state === S.PUNCH || f.state === S.KICK || (f.state === S.HITSTUN && !f.launched);
+    if (f.flip >= 1 || f.grounded || cut) {
+      f.flip = 0;
+      angle = 0;
+    }
+  }
+  f.spin.rotation.x = angle;
+  f.spin.position.set(0, SPIN_PIVOT * (1 - Math.cos(angle)) - f.crouch * 0.42, -SPIN_PIVOT * Math.sin(angle));
+  if (f.zip > 0) f.zip = Math.max(0, f.zip - dt * 4.5);
+}
+
+/** Back to standing straight: a new round, or the select screen. */
+export function resetBodyLanguage(f: Fighter): void {
+  f.flip = f.zip = f.accel = f.landT = f.downT = f.crouch = f.juggles = 0;
+  f.flipDir = 1;
+  f.prevVx = f.vx;
+  f.wasAir = false;
+  f.running = false;
+  f.launched = false;
+  f.dazed = false;
+  f.lean.rotation.set(0, 0, 0);
+  f.spin.rotation.set(0, 0, 0);
+  f.spin.position.set(0, 0, 0);
+  // a fatality hides the loser; every new round and the select screen bring them back
+  f.lean.visible = true;
+  f.body.visible = !f.model;
 }
 
 export function poseFighter(f: Fighter, dt: number, t: number): void {
   const b = f.body;
+  bodyLanguage(f, dt);
   applySquash(f, dt);
   f.root.position.set(f.x, f.y, PLANE_Z);
-  f.root.rotation.y = damp(f.root.rotation.y, f.face * Math.PI / 2, 12, dt);
+  f.powerLight.position.set(f.x, f.y + 1.9 * f.root.scale.y, PLANE_Z);
+  // RUSH turns with the stick, so a turn has to be quick enough to read as a decision
+  f.root.rotation.y = damp(f.root.rotation.y, f.face * Math.PI / 2, state.rush ? 22 : 12, dt);
 
   const speed = Math.abs(f.vx) / f.def.speed;
   const idle = t * 2.1 + f.phase;
@@ -68,6 +172,7 @@ export function poseFighter(f: Fighter, dt: number, t: number): void {
   f.skirt.rotation.z = -f.vx * 0.02;
 
   if (f.powered) {
+    f.powerLight.color.setHex(f.def.accent);
     f.powerLight.distance = 11;
     f.powerLight.intensity = legacyIntensity(3.1 + Math.sin(t * 16) * 1.0);
     f.trail.push(f.x, f.y, PLANE_Z);
@@ -242,12 +347,15 @@ function flashModel(f: Fighter, hit: number, colour: THREE.Color, blown: boolean
 function posePreviewFighter(f: Fighter, x: number, dt: number, t: number, slotIdx: number): void {
   f.root.visible = true;
   f.land = 0;
+  if (f.flip || f.zip || f.lean.rotation.x || !f.lean.visible || f.downT) resetBodyLanguage(f);
   applySquash(f, dt);                  // resets to identity on the pedestal
   f.root.position.set(x, 0, 0.2);
+  f.powerLight.position.set(x, 1.9, 0.2);
   // a three-quarter angle turned toward the opponent
   const face = slotIdx === 0 ? 0.62 : -0.62;
   f.root.rotation.y = face + Math.sin(t * 0.55 + slotIdx * 1.7) * 0.10;
   f.powerLight.distance = 5.0;         // hug the model, do not flood the floor
+  f.powerLight.color.setHex(f.def.accent);   // a match quit mid-RUSH can leave it ember-orange
   f.powerLight.intensity = legacyIntensity(0.85 + Math.sin(t * 2.4 + slotIdx) * 0.2);
 
   const idle = t * 1.9 + f.phase;

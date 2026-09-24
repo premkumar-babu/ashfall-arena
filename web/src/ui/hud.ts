@@ -13,6 +13,7 @@ import type { Fighter } from '../game/fighter';
 import { attackPhase } from '../game/fsm';
 import { match } from '../game/match';
 import { state } from '../game/state';
+import { fatalReady } from '../game/fatalblow';
 import { dom, maybeById } from './dom';
 
 /*
@@ -74,13 +75,17 @@ function stateLabel(f: Fighter): PillLabel {
   return { text: f.state, cls: '' };
 }
 
+/* Under the name, the way the genre shows its assist character: the summon's
+   name, and what it is doing. The raw meter percentage it used to show read
+   as debug output; the gauges already carry the number. */
 function superLabel(f: Fighter): PillLabel {
+  const summon = f.assist?.def.name ?? '';
   if (f.powered) return { text: `OVERDRIVE ${(f.meter / METER.powerDrain).toFixed(1)}s`, cls: 'powered' };
-  if (f.assist && f.assist.state !== A.DORMANT) return { text: `${f.assist.def.name.split(' ')[0]} ${f.assist.state}`, cls: 'live' };
-  if (f.assistCd > 0) return { text: `COOLDOWN ${f.assistCd.toFixed(1)}s`, cls: '' };
-  if (f.meter >= METER.powerCost) return { text: 'OVERDRIVE READY', cls: 'maxed' };
-  if (f.meter >= METER.assistCost) return { text: 'ASSIST READY', cls: 'ready' };
-  return { text: `METER ${Math.floor(f.meter)}%`, cls: '' };
+  if (f.assist && f.assist.state !== A.DORMANT) return { text: summon, cls: 'live' };
+  if (f.assistCd > 0) return { text: `${summon} · ${Math.ceil(f.assistCd)}`, cls: '' };
+  if (f.meter >= METER.powerCost) return { text: `${summon} · OVERDRIVE READY`, cls: 'maxed' };
+  if (f.meter >= METER.assistCost) return { text: `${summon} · READY`, cls: 'ready' };
+  return { text: summon, cls: '' };
 }
 
 function setPill(el: HTMLElement, lab: PillLabel): void {
@@ -111,6 +116,9 @@ export function syncHud(frameDt: number): void {
   for (let k = 0; k < 2; k++) {
     const f = fighters[k]!;
     const side = k as 0 | 1;
+    // the fatal blow is written into the bar while it is there to use; spending it
+    // or a cooldown changes this without the health moving, so it is not gated on hp
+    dom.block[side].classList.toggle('fatal', fatalReady(f));
     setPill(dom.pill[side], stateLabel(f));
     setPill(dom.superPill[side], superLabel(f));
 

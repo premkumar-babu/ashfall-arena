@@ -1,9 +1,10 @@
+import { say } from '../audio/voice';
 import { dom } from './dom';
 
-export type CalloutKind = 'slam' | 'toast' | 'warn';
+export type CalloutKind = 'slam' | 'toast' | 'warn' | 'fatal';
 
 /*
-  The big words: ROUND ONE, FIGHT!, K.O., FINISH HIM!, a summon's name.
+  The big words: ROUND ONE, FIGHT!, K.O., FINISH THEM!, FATALITY, a summon's name.
 
   Keyframe-driven. Restarting a CSS animation needs the class removed, a
   reflow forced, and the class put back — reading offsetWidth is the reflow.
@@ -22,7 +23,15 @@ export function clearAnnounce(): void {
 }
 
 export function announce(text: string, ms: number, kind: CalloutKind = 'slam'): void {
-  dom.callText.textContent = text;
+  // the big calls are spoken as well as shown; toasts are just information
+  if (kind !== 'toast') say(text.replace('\n', '. '));
+  const [head, sub] = text.split('\n');
+  dom.callText.textContent = head ?? '';
+  if (sub) {
+    const small = document.createElement('small');
+    small.textContent = sub;
+    dom.callText.appendChild(small);
+  }
   dom.call.className = '';
   void dom.call.offsetWidth;              // restart the keyframes
   dom.call.className = `show ${kind}`;

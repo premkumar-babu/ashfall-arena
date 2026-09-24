@@ -1,6 +1,7 @@
 import { BOT_STATE, type BotState, type FighterState } from '../config/constants';
 
-export type QueuedAttack = 'P' | 'K';
+/** Punch, kick, and the two held-guard moves: uppercut and sweep. */
+export type QueuedAttack = 'P' | 'K' | 'U' | 'S';
 
 /** Per-fighter memory for the CPU. Every fighter carries one; only the CPU side reads it. */
 export interface Brain {

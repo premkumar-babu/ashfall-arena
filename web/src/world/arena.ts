@@ -276,7 +276,9 @@ export function buildArena(theme: Theme): Arena {
     // shader in the scene up a light, for a difference nobody can see
     let light: THREE.PointLight | null = null;
     if (i === 1 || i === 2) {
-      light = pointLight(0xffa060, 0.45, 18);
+      /* The reach stops short of the foreground: at 18 the floor between
+         lamp and camera caught each flame's reflection as a hot orange pool. */
+      light = pointLight(0xffa060, 0.45, 12.5);
       light.position.copy(flame.position);
       group.add(light);
     }

@@ -1,4 +1,5 @@
 import { Burst } from '../fx/particles';
+import { updateBlood } from '../fx/blood';
 import { sparks, updatePortals, updateScorch, updateStreaks, updateVfx, type Portal, type Scorch } from '../fx/vfx';
 import { state } from '../game/state';
 import { arena, DUST, EMBERS, syncClouds } from './arena';
@@ -118,6 +119,7 @@ export function updateAmbience(dt: number, t: number): void {
   }
 
   Burst.update(dt);
+  updateBlood(dt);
   updateVfx(dt);
   updateStreaks(dt);
 

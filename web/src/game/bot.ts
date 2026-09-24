@@ -1,6 +1,8 @@
-import { A, BOT_STATE, BOUND, METER, MIN_GAP, S } from '../config/constants';
+import { A, BOT_STATE, METER, MIN_GAP, S } from '../config/constants';
 import type { Fighter } from './fighter';
 import { blankIntent, type Intent } from './intent';
+import { specialReady } from './specials';
+import { fatalReady } from './fatalblow';
 import { match } from './match';
 import { state, type Difficulty } from './state';
 
@@ -26,6 +28,8 @@ interface BotTuning {
   hop: number;
   dash: number;
   antiAir: number;
+  /** Chance per step of throwing the special from range. */
+  special: number;
   shuffle: number;
   strings: number;
   damage: number;
@@ -34,9 +38,9 @@ interface BotTuning {
 type DifficultyTuning = Omit<BotTuning, 'reaction' | 'range' | 'slop' | 'lowHealth'>;
 
 export const DIFFICULTY: Readonly<Record<Difficulty, DifficultyTuning>> = {
-  EASY: { blockChance: 0.08, gapMin: 0.44, gapMax: 1.05, thinkMin: 0.72, thinkMax: 1.70, hop: 0.10, dash: 0.01, antiAir: 0.01, shuffle: 0.05, strings: 2, damage: 0.72 },
-  NORMAL: { blockChance: 0.30, gapMin: 0.16, gapMax: 0.44, thinkMin: 0.22, thinkMax: 0.70, hop: 0.35, dash: 0.05, antiAir: 0.05, shuffle: 0.015, strings: 3, damage: 1.00 },
-  HARD: { blockChance: 0.54, gapMin: 0.10, gapMax: 0.26, thinkMin: 0.13, thinkMax: 0.40, hop: 0.55, dash: 0.13, antiAir: 0.15, shuffle: 0.01, strings: 4, damage: 1.15 },
+  EASY: { blockChance: 0.08, gapMin: 0.44, gapMax: 1.05, thinkMin: 0.72, thinkMax: 1.70, hop: 0.10, dash: 0.01, antiAir: 0.01, special: 0.002, shuffle: 0.05, strings: 2, damage: 0.72 },
+  NORMAL: { blockChance: 0.30, gapMin: 0.16, gapMax: 0.44, thinkMin: 0.22, thinkMax: 0.70, hop: 0.35, dash: 0.05, antiAir: 0.05, special: 0.007, shuffle: 0.015, strings: 3, damage: 1.00 },
+  HARD: { blockChance: 0.54, gapMin: 0.10, gapMax: 0.26, thinkMin: 0.13, thinkMax: 0.40, hop: 0.55, dash: 0.13, antiAir: 0.15, special: 0.013, shuffle: 0.01, strings: 4, damage: 1.15 },
 };
 
 const BOT: BotTuning = { reaction: 0.12, range: 2.15, slop: 0.40, lowHealth: 30, ...DIFFICULTY.NORMAL };
@@ -53,18 +57,6 @@ export function setDifficulty(name: Difficulty): void {
 /** Only the CPU's own blows are scaled — the player's numbers never move, whatever the setting. */
 export function damageScale(att: Fighter): number {
   return state.mode1P && att === state.P2 ? BOT.damage : 1;
-}
-
-/* Ring-outs took the walls away, so the bot has to know the floor ends. Its
-   retreat used to be safe by definition — the wall caught it — and without
-   this it now backs off the edge and loses rounds to nobody. */
-const EDGE_SAFE = 9.6;
-
-export function keepBotOnStage(f: Fighter, i: Intent): void {
-  const own = Math.sign(f.x);
-  if (!own) return;
-  if (Math.abs(f.x) > EDGE_SAFE && Math.sign(i.move) === own) i.move = 0;
-  if (Math.abs(f.x) > BOUND - 0.7) i.move = -own;
 }
 
 export function botIntent(f: Fighter, foe: Fighter, dt: number): Intent {
@@ -98,6 +90,20 @@ export function botIntent(f: Fighter, foe: Fighter, dt: number): Intent {
     return i;
   }
 
+  // a turtle gets thrown
+  if (foe.state === S.BLOCK && f.grounded && dist < 1.9 && Math.random() < 0.05) {
+    b.state = BOT_STATE.PRESSURE;
+    i.punchDown = i.kickDown = true;
+    return i;
+  }
+
+  // a fatal blow, when it is there and they are in reach
+  if (fatalReady(f) && f.grounded && dist < 2.4 && Math.random() < 0.035) {
+    b.state = BOT_STATE.PRESSURE;
+    i.powerDown = true;
+    return i;
+  }
+
   // summon the moment the gauge tops out
   if (f.meter >= METER.max && f.assistCd <= 0 && f.assist?.state === A.DORMANT) {
     b.state = BOT_STATE.ASSIST;
@@ -123,17 +129,21 @@ export function botIntent(f: Fighter, foe: Fighter, dt: number): Intent {
       b.queue.length = 0;
     } else {
       b.state = BOT_STATE.PRESSURE;
-      if (b.queue.shift() === 'P') i.punchDown = true;
+      const next = b.queue.shift();
+      if (next === 'P' || next === 'U') i.punchDown = true;
       else i.kickDown = true;
+      if (next === 'U' || next === 'S') i.block = true;   // held guard: uppercut and sweep
       b.gap = BOT.gapMin + Math.random() * (BOT.gapMax - BOT.gapMin);
       return i;
     }
   }
 
   // punish a jump-in on the way down, or hop in itself
-  if (!foe.grounded && dist < 3.6 && f.grounded && Math.random() < BOT.antiAir) {
+  // a jump-in, or a fighter still in the air from a launch, eats an uppercut
+  if (!foe.grounded && dist < 3.2 && f.grounded && Math.random() < BOT.antiAir) {
     b.state = BOT_STATE.ANTIAIR;
-    i.kickDown = true;
+    i.punchDown = true;
+    i.block = true;
     return i;
   }
   if (f.grounded && dist > 4.6 && dist < 8.5 && b.t > b.nextHop && Math.random() < BOT.hop) {
@@ -145,6 +155,13 @@ export function botIntent(f: Fighter, foe: Fighter, dt: number): Intent {
   }
   if (!f.grounded && dist < 3.2 && Math.random() < 0.12) {
     i.punchDown = true;
+    return i;
+  }
+
+  // from range, the special: a bolt, a spear, a charge or a step behind them
+  if (f.grounded && dist > 3.6 && dist < 9.5 && specialReady(f) && Math.random() < BOT.special) {
+    b.state = BOT_STATE.APPROACH;
+    i.specialDown = true;
     return i;
   }
 
@@ -162,6 +179,10 @@ export function botIntent(f: Fighter, foe: Fighter, dt: number): Intent {
     b.nextThink = b.t + BOT.thinkMin + Math.random() * (BOT.thinkMax - BOT.thinkMin);
     const n = 1 + Math.floor(Math.random() * BOT.strings);
     for (let k = 0; k < n; k++) b.queue.push(Math.random() < 0.66 ? 'P' : 'K');
+    // strings end on a launcher or a sweep now and then
+    const end = Math.random();
+    if (end < 0.28) b.queue.push('U');
+    else if (end < 0.42) b.queue.push('S');
   } else if (Math.random() < BOT.shuffle) {
     i.move = Math.random() < 0.5 ? 1 : -1;        // idle shuffle
   }

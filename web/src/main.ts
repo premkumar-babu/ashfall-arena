@@ -19,6 +19,8 @@ import { Ambience } from './audio/ambience';
 import { Flip } from './fx/flipbook';
 import { bindFeelLoop, resetFeel } from './fx/juice';
 import { initParticles, resetParticles } from './fx/particles';
+import { initBlood } from './fx/blood';
+import { bindWarmup } from './render/warmup';
 import { resetSwingRibbons } from './fx/ribbon';
 import { initStrikeLights, resetStrikeLights } from './fx/strike-lights';
 import { initVfx, resetVfx } from './fx/vfx';
@@ -101,6 +103,7 @@ async function boot(): Promise<() => void> {
     buildLandscape(state.theme);                   // terrain and walls now; props stream in below
     initParticles();
     initVfx();
+    initBlood();
     Flip.load();
     initStrikeLights();
     loadSurfaces();
@@ -136,6 +139,7 @@ async function boot(): Promise<() => void> {
     bindThemeRenderer(renderer);
     disposer.defer(() => bindThemeRenderer(null));
     initPortraits(renderer);
+    bindWarmup(renderer, scene, camera);
     disposer.defer(disposePortraits);
 
     const perf = disposer.track(new PerfMonitor(document.body, queryFlag('stats')));

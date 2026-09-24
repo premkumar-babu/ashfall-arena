@@ -8,9 +8,9 @@ import type { Assist } from '../game/assist-rig';
 import type { Fighter } from '../game/fighter';
 import { assistRigs, rigs } from '../game/rigs';
 import { driveBones, isBone, normBone } from './bones';
-import type { AnimTarget } from './types';
+import type { AnimSlot, AnimTarget } from './types';
 
-type ClipTable = Partial<Record<FighterState, string>>;
+type ClipTable = Partial<Record<AnimSlot, string>>;
 type Pool = readonly [readonly AnimTarget[], readonly AnimTarget[]];
 
 /* Clip-name fragments mapped onto the state machine. Mixamo names a merged
@@ -28,7 +28,7 @@ const ANIM_MAP: Readonly<Record<FighterState, readonly string[]>> = {
 
 /** Unmatched clips (every single Mixamo download is called "mixamo.com") are dealt out in this order. */
 const CLIP_ORDER: readonly FighterState[] = ['IDLE', 'KICK', 'PUNCH', 'HITSTUN', 'KO', 'WALK'];
-const ONE_SHOT: readonly FighterState[] = ['PUNCH', 'KICK', 'HITSTUN', 'KO'];
+const ONE_SHOT: readonly AnimSlot[] = ['PUNCH', 'KICK', 'HITSTUN', 'KO', 'LAND'];
 
 /* Mixamo character-only exports still carry a stub track — "mixamo.com" at
    0.03 s — which is a single bind-pose frame, not motion. Binding one looks
@@ -107,6 +107,15 @@ export const ANIM_LIB = {
     palevigil: { IDLE: 'Melee_2H_Idle', PUNCH: 'Melee_1H_Attack_Slice_Horizontal', KICK: 'Melee_1H_Attack_Slice_Diagonal', BLOCK: 'Melee_Block' },
     bronzemaw: { KICK: 'Melee_2H_Attack_Chop', HITSTUN: 'Hit_B' },
     nocturne: { PUNCH: 'Melee_Dualwield_Attack_Stab', KICK: 'Melee_2H_Attack_Spin', KO: 'Death_B' },
+  } as Readonly<Record<string, ClipTable>>,
+  /* How a fighter gets around, beside the state machine's slots: a run cycle
+     for anything faster than a walk, and a landing. Summons never land and
+     have their own run, so these are the fighters' alone. The two light
+     fighters get the looser, arms-back run. */
+  loco: { RUN: 'Running_A', LAND: 'Jump_Land' } satisfies ClipTable,
+  locoPerId: {
+    palevigil: { RUN: 'Running_B' },
+    nocturne: { RUN: 'Running_B' },
   } as Readonly<Record<string, ClipTable>>,
   /** Where a library clip beats whatever the model happened to ship with. */
   force: ['PUNCH', 'KICK', 'BLOCK', 'HITSTUN', 'KO'] as readonly FighterState[],
@@ -285,9 +294,9 @@ export function captureRest(model: THREE.Object3D): void {
 export function applyLibraryClips(target: AnimTarget, table: ClipTable): boolean {
   if (target.libBound || !target.model || !ClipLib.count) return false;
 
-  const need: Array<{ slot: FighterState; clip: THREE.AnimationClip }> = [];
-  for (const slot of Object.keys(table) as FighterState[]) {
-    const forced = ANIM_LIB.force.includes(slot);
+  const need: Array<{ slot: AnimSlot; clip: THREE.AnimationClip }> = [];
+  for (const slot of Object.keys(table) as AnimSlot[]) {
+    const forced = (ANIM_LIB.force as readonly AnimSlot[]).includes(slot);
     if (!forced && target.actions?.[slot] && !target.standIn[slot]) continue;
     const src = ClipLib.get(table[slot]!);
     if (!src) continue;
@@ -313,7 +322,11 @@ export function applyLibraryClips(target: AnimTarget, table: ClipTable): boolean
 
 export function libraryTable(def: FighterDef | null, isAssist: boolean): ClipTable {
   if (isAssist) return { ...ANIM_LIB.assist };
-  return { ...ANIM_LIB.common, ...(def ? ANIM_LIB.perId[def.id] : undefined) };
+  return {
+    ...ANIM_LIB.common, ...ANIM_LIB.loco,
+    ...(def ? ANIM_LIB.perId[def.id] : undefined),
+    ...(def ? ANIM_LIB.locoPerId[def.id] : undefined),
+  };
 }
 
 /** Called from both ends of the race — a model landing, and the library finishing. Whichever is second does the work. */
@@ -466,14 +479,22 @@ export function bindClips(target: AnimTarget, model: THREE.Object3D, animations:
 const FADE = { fast: 0.06, normal: 0.15 } as const;
 const FADE_FAST: ReadonlySet<FighterState> = new Set(['PUNCH', 'KICK', 'HITSTUN', 'KO']);
 
-export function playAction(target: AnimTarget, slot: FighterState): void {
+export function playAction(target: AnimTarget, slot: AnimSlot): void {
   if (!target.mixer || !target.actions) return;
   const next = target.actions[slot] ?? target.actions.IDLE;
   if (!next || next === target.currentAction) return;
-  const dur = FADE_FAST.has(slot) ? FADE.fast : FADE.normal;
+  const dur = FADE_FAST.has(slot as FighterState) || slot === 'LAND' ? FADE.fast : FADE.normal;
   const prev = target.currentAction;
 
   next.reset().setEffectiveWeight(1).play();
+  /* Walk into run and back: start the new cycle at the same point of the
+     stride the old one had reached, so the feet do not swap mid-blend. */
+  const acts = target.actions;
+  const cycle = (a: THREE.AnimationAction | null | undefined): boolean => !!a && (a === acts.WALK || a === acts.RUN);
+  if (prev && cycle(prev) && cycle(next)) {
+    const phase = (prev.time / prev.getClip().duration) % 1;
+    next.time = (phase < 0 ? phase + 1 : phase) * next.getClip().duration;
+  }
   /* crossFadeTo ties both weights to one clock so they always sum to 1. Two
      independent fades briefly sum to less, and the skeleton sags toward its
      rest pose mid-blend — visible on a hit reaction. */
@@ -488,13 +509,153 @@ function stopActions(target: AnimTarget): void {
   target.currentAction = null;
 }
 
+/* ── locomotion ──────────────────────────────────────────────────────────
+   The state machine only knows IDLE, WALK and JUMP. Played as-is, a fighter
+   crossing the stage at full speed ran the walking clip at its authored rate
+   while the root slid underneath it — feet skating over the stones, which is
+   most of what makes a character read as a toy being pushed around. So the
+   moving states pick their clip from the speed actually being travelled, and
+   play it at the rate that keeps the planted foot planted. */
+
+/** Run takes over from walk around the geometric mean of their two gait speeds; the gap is hysteresis. */
+const RUN_ON = 1.1;
+const RUN_OFF = 0.9;
+/* Rate limits, so a creep or a dash does not play a cycle at a silly speed.
+   The KayKit cast is chibi — a stride is barely a quarter of their height — so
+   a full sprint wants the run near three times over. Past the cap the feet
+   slide a little rather than blur. */
+const RATE = { WALK: [0.5, 2.2], RUN: [0.8, 3.0] } as const;
+/** A hard landing shows the landing clip for this long, sped up, unless the fighter is already moving off. */
+const LAND = { time: 0.3, rate: 1.7, minImpact: 0.3, maxSpeed: 2.5 } as const;
+/** World units per second at rate 1, used only if a rig's feet cannot be found. */
+const GAIT_FALLBACK = { WALK: 2.2, RUN: 5.0 } as const;
+
+const gaitCache = new WeakMap<THREE.AnimationAction, number>();
+const _gw = new THREE.Vector3();
+
+/*
+  How fast a cycle travels at rate 1. The library clips are in place — the
+  root never moves — so the planted foot slides backward at exactly the speed
+  the body should be going forward. Sampling the lower foot through one loop
+  measures that directly off the rig, per fighter, with that fighter's own
+  proportions and scale, instead of a number tuned by eye for one of them.
+*/
+function measureGait(f: Fighter, clip: THREE.AnimationClip): number {
+  const model = f.model;
+  const frame = model?.parent;
+  if (!model || !frame) return 0;
+  const feet: THREE.Object3D[] = [];
+  const saved: Array<[THREE.Object3D, THREE.Quaternion]> = [];
+  model.traverse((n) => {
+    if (!isBone(n)) return;
+    saved.push([n, n.quaternion.clone()]);
+    const k = normBone(n.name);
+    if (k === 'leftfoot' || k === 'rightfoot') feet.push(n);
+  });
+  if (feet.length < 2) return 0;
+
+  const probe = new THREE.AnimationMixer(model);
+  probe.clipAction(clip).play();
+  frame.updateWorldMatrix(true, false);
+  const N = 48;
+  const step = clip.duration / N;
+  const path: Array<[THREE.Vector3, THREE.Vector3]> = [];
+  for (let i = 0; i <= N; i++) {
+    probe.setTime(i * step);
+    model.updateMatrixWorld(true);
+    const a = frame.worldToLocal(feet[0]!.getWorldPosition(_gw)).clone();
+    const b = frame.worldToLocal(feet[1]!.getWorldPosition(_gw)).clone();
+    path.push([a, b]);
+  }
+  probe.stopAllAction();
+  probe.uncacheRoot(model);
+  for (const [n, q] of saved) n.quaternion.copy(q);
+
+  /* The lower foot is the planted one, and its backward travel is the body's
+     forward speed. Around each footfall the swinging foot dips below the
+     planted one for a sample or two while still moving forward; counting that
+     as negative travel undercounted a run by a third, so only backward travel
+     is summed. */
+  let travel = 0;
+  for (let i = 0; i < N; i++) {
+    const [a0, b0] = path[i]!;
+    const [a1, b1] = path[i + 1]!;
+    const k = a0.y + a1.y <= b0.y + b1.y ? 0 : 1;
+    const p0 = k === 0 ? a0 : b0;
+    const p1 = k === 0 ? a1 : b1;
+    travel += Math.max(0, p0.z - p1.z);
+  }
+  return (travel / clip.duration) * f.root.scale.x;
+}
+
+function gait(f: Fighter, slot: 'WALK' | 'RUN'): number {
+  const a = f.actions?.[slot];
+  if (!a) return GAIT_FALLBACK[slot];
+  let v = gaitCache.get(a);
+  if (v === undefined) {
+    v = measureGait(f, a.getClip());
+    if (!(v > 0.4)) v = GAIT_FALLBACK[slot];
+    gaitCache.set(a, v);
+  }
+  return v;
+}
+
+/** Which clip the fighter's body should be showing, which is not always the state it is in. */
+function bodySlot(f: Fighter, dt: number): AnimSlot {
+  const air = !f.grounded;
+  if (f.wasAir && !air && f.land > LAND.minImpact) f.landT = LAND.time;
+  f.wasAir = air;
+  if (f.landT > 0) f.landT = Math.max(0, f.landT - dt);
+
+  const s = f.state;
+  if (s !== 'IDLE' && s !== 'WALK' && s !== 'JUMP') return s;
+  if (air) return 'JUMP';
+
+  const acts = f.actions!;
+  const speed = Math.abs(f.vx);
+  const forward = Math.sign(f.vx) === f.face;
+  if (f.dashTime > 0) return forward && acts.RUN ? 'RUN' : 'JUMP';     // a backdash reads as a hop
+  if (f.landT > 0 && speed < LAND.maxSpeed && acts.LAND) return 'LAND';
+  if (s === 'IDLE' || speed < 0.35) {
+    f.running = false;
+    return 'IDLE';
+  }
+  if (!forward || !acts.RUN) {
+    f.running = false;
+    return 'WALK';
+  }
+  const mid = Math.sqrt(gait(f, 'WALK') * gait(f, 'RUN'));
+  f.running = speed > mid * (f.running ? RUN_OFF : RUN_ON);
+  return f.running ? 'RUN' : 'WALK';
+}
+
+/** Cycles play at the rate that matches the ground being covered; backwards for a backpedal. */
+function setRate(f: Fighter, slot: AnimSlot): void {
+  const a = f.actions?.[slot];
+  if (!a) return;
+  if (slot === 'WALK' || slot === 'RUN') {
+    const [lo, hi] = RATE[slot];
+    const dir = f.vx !== 0 && Math.sign(f.vx) !== f.face ? -1 : 1;
+    a.timeScale = clamp(Math.abs(f.vx) / gait(f, slot), lo, hi) * dir;
+  } else {
+    a.timeScale = slot === 'LAND' ? LAND.rate : 1;
+  }
+}
+
+/** Measured gait speeds, for tuning from the console. */
+export function gaitReport(f: Fighter): Record<string, number> {
+  return { walk: +gait(f, 'WALK').toFixed(2), run: +gait(f, 'RUN').toFixed(2), top: f.def.speed };
+}
+
 /* Per state, not all-or-nothing. Where a clip exists for the current state
    the mixer owns the skeleton; where one does not, every action is stopped so
    the mixer writes nothing and the bone driver takes that state back. */
 export function driveMixer(f: Fighter, dt: number, t: number): void {
   if (f.mixer) {
-    if (f.actions?.[f.state]) {
-      playAction(f, f.state);
+    const slot = f.actions ? bodySlot(f, dt) : f.state;
+    if (f.actions?.[slot]) {
+      playAction(f, slot);
+      setRate(f, slot);
       f.mixer.update(dt);
       return;
     }
