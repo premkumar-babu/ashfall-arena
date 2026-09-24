@@ -9,8 +9,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;900&family=Cinzel+Decorative:wght@700;900&family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;500&family=Teko:wght@500;600;700&family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&family=Bebas+Neue&family=Russo+One&display=swap">
-  <script type="module" crossorigin src="./assets/index-BhYxliz1.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-BP2ayGpR.css">
+  <script type="module" crossorigin src="./assets/index-CgQRckjd.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-aKZ6o1Uq.css">
 </head>
 <body>
 <div id="game">
@@ -21,7 +21,7 @@
     <div class="status">
       <div class="fighter-block p1" id="fb0">
         <div class="nameplate"><span class="fname" id="fn0">CINDERWARD</span><span class="tag">P1</span></div>
-        <div class="bar"><i class="chip" id="chip1"></i><i class="hp" id="hp1"></i></div>
+        <div class="bar"><i class="chip" id="chip1"></i><i class="hp" id="hp1"></i><b class="fbl">FATAL BLOW</b></div>
         <div class="gauges">
           <div class="gauge assist" id="ga0"><i id="gaf0"></i><span class="sheen"></span><b>ASSIST</b></div>
           <div class="gauge super" id="gs0"><i id="gsf0"></i><span class="sheen"></span><b>SUPER</b></div>
@@ -37,7 +37,7 @@
 
       <div class="fighter-block p2" id="fb1">
         <div class="nameplate"><span class="fname" id="fn1">PALE VIGIL</span><span class="tag" id="tag1">CPU</span></div>
-        <div class="bar"><i class="chip" id="chip2"></i><i class="hp" id="hp2"></i></div>
+        <div class="bar"><i class="chip" id="chip2"></i><i class="hp" id="hp2"></i><b class="fbl">FATAL BLOW</b></div>
         <div class="gauges">
           <div class="gauge assist" id="ga1"><i id="gaf1"></i><span class="sheen"></span><b>ASSIST</b></div>
           <div class="gauge super" id="gs1"><i id="gsf1"></i><span class="sheen"></span><b>SUPER</b></div>
@@ -100,8 +100,8 @@
       <div class="syskey"><kbd>B</kbd> boxes <kbd>M</kbd> sound <span id="sndstate">off</span> <kbd>P</kbd> post fx <kbd>N</kbd> music <kbd>T</kbd> stage <kbd>Esc</kbd> pause</div>
     </div>
 
-    <div class="combo p1" id="cb0"><span class="cnum">0</span><span class="clab">HIT COMBO</span></div>
-    <div class="combo p2" id="cb1"><span class="cnum">0</span><span class="clab">HIT COMBO</span></div>
+    <div class="combo p1" id="cb0"><span class="cdmg">0</span><span class="chits"><span class="cnum">0</span><span class="clab">HITS</span></span></div>
+    <div class="combo p2" id="cb1"><span class="cdmg">0</span><span class="chits"><span class="cnum">0</span><span class="clab">HITS</span></span></div>
 
     <div id="call"><span></span></div>
 
@@ -199,6 +199,12 @@
             <tr><td>Heavy</td><td><kbd>K</kbd> &middot; right click</td><td><kbd>2</kbd></td><td><kbd>Y</kbd></td></tr>
             <tr><td>Summon</td><td><kbd>L</kbd><kbd>R</kbd> &middot; middle click</td><td><kbd>3</kbd></td><td><kbd>B</kbd></td></tr>
             <tr><td>Overdrive</td><td><kbd>I</kbd></td><td><kbd>0</kbd></td><td><kbd>RB</kbd></td></tr>
+            <tr><td>Special</td><td><kbd>A</kbd><kbd>D</kbd> + <kbd>J</kbd> (back, forward, light)</td><td>back, forward + <kbd>1</kbd></td><td>back, forward + <kbd>X</kbd></td></tr>
+            <tr><td>Throw</td><td><kbd>J</kbd> + <kbd>K</kbd></td><td><kbd>1</kbd> + <kbd>2</kbd></td><td><kbd>X</kbd> + <kbd>Y</kbd></td></tr>
+            <tr><td>Uppercut</td><td><kbd>S</kbd> + <kbd>J</kbd></td><td><kbd>&darr;</kbd> + <kbd>1</kbd></td><td>down + <kbd>X</kbd></td></tr>
+            <tr><td>Sweep</td><td><kbd>S</kbd> + <kbd>K</kbd></td><td><kbd>&darr;</kbd> + <kbd>2</kbd></td><td>down + <kbd>Y</kbd></td></tr>
+            <tr><td>Fatal Blow</td><td colspan="3">Overdrive at 30% health or less &middot; once a match</td></tr>
+            <tr><td>Fatality</td><td colspan="3">at <b>FINISH THEM</b>, get close and press Overdrive</td></tr>
           </tbody>
         </table>
         <p class="mnote">
@@ -244,6 +250,10 @@
             <div><b>MUSIC</b><small>Streams a track, falls back to a synth bed (<kbd>N</kbd>)</small></div>
             <button class="sw" id="swMusic" aria-pressed="false"><i></i><span>OFF</span></button>
           </div>
+          <div class="srow">
+            <div><b>ANNOUNCER</b><small>The spoken ROUND ONE, FIGHT, FINISH THEM and FATALITY</small></div>
+            <button class="sw" id="swVoice" aria-pressed="true"><i></i><span>ON</span></button>
+          </div>
         </section>
 
         <section class="spage" data-page="video" role="tabpanel" hidden>
@@ -264,6 +274,10 @@
           <div class="srow">
             <div><b>SCREEN SHAKE</b><small>Camera kick on impact</small></div>
             <button class="sw" id="swShake" aria-pressed="true"><i></i><span>ON</span></button>
+          </div>
+          <div class="srow">
+            <div><b>BLOOD</b><small>Blood sprays, pools on the floor, and the fatality finish</small></div>
+            <button class="sw" id="swGore" aria-pressed="true"><i></i><span>ON</span></button>
           </div>
         </section>
 
@@ -327,9 +341,34 @@
               <dt>LIGHT <em>7 dmg &middot; fast</em></dt>
               <dd>Short startup, short recovery. Your check, and the link that
                   starts most combos.</dd>
-              <dt>HEAVY <em>12 dmg &middot; launches</em></dt>
+              <dt>HEAVY <em>12 dmg &middot; knockback</em></dt>
               <dd>Slow enough to be seen coming. Big knockback, so it ends a
                   combo rather than continuing one.</dd>
+              <dt>UPPERCUT <em>block + light &middot; 14 dmg &middot; launcher</em></dt>
+              <dd>Slow out and badly punished on a whiff, but it throws them into
+                  the air, and a fighter in the air can be hit again on the way down.
+                  It is also the answer to a jump-in.</dd>
+              <dt>SWEEP <em>block + heavy &middot; 9 dmg &middot; knockdown</em></dt>
+              <dd>Low and quick. It takes their feet and leaves them on the floor.</dd>
+              <dt>SPECIAL <em>back, forward + light</em></dt>
+              <dd>One each. Cinderward throws an <b>Ember Bolt</b>; Pale Vigil's
+                  <b>Spectral Spear</b> drags you in on its chain; Bronzemaw's
+                  <b>Iron Charge</b> launches; Nocturne's <b>Shade Step</b> vanishes and
+                  kicks from behind. Blockable, with a short cooldown.</dd>
+              <dt>THROW <em>light + heavy &middot; 12 dmg &middot; unblockable</em></dt>
+              <dd>Up close only. Over the shoulder and down on their back on the
+                  far side: the answer to someone who will not stop blocking.</dd>
+              <dt>FATAL BLOW <em>30% health &middot; once a match</em></dt>
+              <dd>When FATAL BLOW shows in your bar, Overdrive becomes it: an
+                  armoured lunge that, if it connects, stops the fight for three
+                  blows and throws them across the stage. Miss, and it comes back
+                  after a few seconds.</dd>
+              <dt>FATALITY <em>match point</em></dt>
+              <dd>The blow that would win the match leaves them standing:
+                  <b>FINISH THEM</b>. Any hit drops them. Overdrive, up close, is
+                  the fatality &mdash; each fighter has their own: Cinderward&rsquo;s <b>Ashen Oath</b>,
+                  Pale Vigil&rsquo;s <b>Soul Harvest</b>, Bronzemaw&rsquo;s <b>Ground Pound</b> and
+                  Nocturne&rsquo;s <b>Thousand Cuts</b>.</dd>
               <dt>ASSIST <em>50% meter</em></dt>
               <dd>Both deal 10. Emberwraith splits it: 6 on the leap, 4 on a cinder orb
                   that flies on. The Carrion Idol lands all 10 in one slam whose shockwave
