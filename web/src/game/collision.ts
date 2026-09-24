@@ -246,8 +246,9 @@ export function landHit(def: Fighter, o: HitOptions): boolean {
      awarded the win to whichever hitbox happened to be tested first.
      settleKO() runs once both fighters have been resolved. */
   if (def.hp <= 0) {
-    // the blow that would decide the match leaves them standing: FINISH THEM
-    if (!blocked && decides(def)) {
+    // the blow that would decide the match leaves them standing: FINISH THEM —
+    // chip damage through a guard included, or a turtle could never be finished
+    if (decides(def)) {
       beginFinish(def);
       return true;
     }

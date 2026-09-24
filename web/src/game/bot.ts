@@ -38,9 +38,9 @@ interface BotTuning {
 type DifficultyTuning = Omit<BotTuning, 'reaction' | 'range' | 'slop' | 'lowHealth'>;
 
 export const DIFFICULTY: Readonly<Record<Difficulty, DifficultyTuning>> = {
-  EASY: { blockChance: 0.08, gapMin: 0.44, gapMax: 1.05, thinkMin: 0.72, thinkMax: 1.70, hop: 0.10, dash: 0.01, antiAir: 0.01, special: 0.002, shuffle: 0.05, strings: 2, damage: 0.72 },
-  NORMAL: { blockChance: 0.30, gapMin: 0.16, gapMax: 0.44, thinkMin: 0.22, thinkMax: 0.70, hop: 0.35, dash: 0.05, antiAir: 0.05, special: 0.007, shuffle: 0.015, strings: 3, damage: 1.00 },
-  HARD: { blockChance: 0.54, gapMin: 0.10, gapMax: 0.26, thinkMin: 0.13, thinkMax: 0.40, hop: 0.55, dash: 0.13, antiAir: 0.15, special: 0.013, shuffle: 0.01, strings: 4, damage: 1.15 },
+  EASY: { blockChance: 0.08, gapMin: 0.44, gapMax: 1.05, thinkMin: 0.72, thinkMax: 1.70, hop: 0.10, dash: 0.01, antiAir: 0.01, special: 0.0012, shuffle: 0.05, strings: 2, damage: 0.72 },
+  NORMAL: { blockChance: 0.30, gapMin: 0.16, gapMax: 0.44, thinkMin: 0.22, thinkMax: 0.70, hop: 0.35, dash: 0.05, antiAir: 0.05, special: 0.004, shuffle: 0.015, strings: 3, damage: 1.00 },
+  HARD: { blockChance: 0.54, gapMin: 0.10, gapMax: 0.26, thinkMin: 0.13, thinkMax: 0.40, hop: 0.55, dash: 0.13, antiAir: 0.15, special: 0.008, shuffle: 0.01, strings: 4, damage: 1.15 },
 };
 
 const BOT: BotTuning = { reaction: 0.12, range: 2.15, slop: 0.40, lowHealth: 30, ...DIFFICULTY.NORMAL };
@@ -98,7 +98,8 @@ export function botIntent(f: Fighter, foe: Fighter, dt: number): Intent {
   }
 
   // a fatal blow, when it is there and they are in reach
-  if (fatalReady(f) && f.grounded && dist < 2.4 && Math.random() < 0.035) {
+  // per 120 Hz step: about one try in two seconds while in range, not the instant it could
+  if (fatalReady(f) && f.grounded && dist < 2.4 && Math.random() < 0.004) {
     b.state = BOT_STATE.PRESSURE;
     i.powerDown = true;
     return i;
