@@ -9,7 +9,9 @@ export const PAL = {
 /* ── stage geometry and physics ───────────────────────────────────────── */
 export const PLANE_Z = 0;
 export const BOUND = 11.0;
-export const MIN_GAP = 1.55;
+/* Pushbox gap. The loaded chibi models are about 1.9 units across at the head, so at 1.55 two
+   fighters standing toe to toe sank into each other on screen. */
+export const MIN_GAP = 1.75;
 export const GRAVITY = -26.0;
 export const GROUND = 0.0;
 export const ROUNDS_TO_WIN = 2;
@@ -54,8 +56,10 @@ export type BotState = (typeof BOT_STATE)[keyof typeof BOT_STATE];
    height of the screen and the stage behind them falls into soft focus. The
    rig still pulls back as they separate. (C cycles to a WIDE view for anyone
    who wants the stage.) */
+/* Pulled back again after playtest feedback ("a bit more zoomed out"): at footsie range the
+   fighters now fill a little over half the screen height, feet and the floor under them in frame. */
 export const RIG = {
-  zMin: 7.8, zMax: 18, zBase: 6.7, zPerGap: 0.55,
+  zMin: 9.4, zMax: 19, zBase: 8.4, zPerGap: 0.6,
   yBase: 2.25, yPerGap: 0.06, xPull: 0.92,
   lambdaX: 4.2, lambdaZ: 3.0, lambdaY: 3.4, lambdaLook: 5.0,
 } as const;

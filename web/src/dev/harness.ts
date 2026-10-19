@@ -6,6 +6,7 @@ import { setDifficulty } from '../game/bot';
 import { inFatalBlow } from '../game/fatalblow';
 import { finishing, inFatality } from '../game/finish';
 import type { Fighter } from '../game/fighter';
+import { rigs } from '../game/rigs';
 import { state, type Difficulty } from '../game/state';
 
 /*
@@ -91,8 +92,12 @@ export function startFight(o: StartOptions = {}): void {
   if (o.difficulty) setDifficulty(o.difficulty);
   document.body.classList.remove('attract', 'titling', 'selecting', 'bye', 'modal');
   startMatch();
+  // the select screen is what normally shows the picked pair; skipping it, show them here
+  for (const side of rigs) for (const r of side) r.root.visible = false;
+  for (const f of state.fighters) f.root.visible = true;
   skipIntro();
-  match.hold = 0;
+  // one step lets the intro close itself, so its HUD and camera state are released properly
+  simulate(DT);
 }
 
 function bad(f: Fighter): string | null {

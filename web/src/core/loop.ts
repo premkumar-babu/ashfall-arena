@@ -55,6 +55,9 @@ export class FixedStepLoop {
   /** Scales simulated time; 0 freezes the simulation while frames keep drawing. */
   timeScale = 1;
 
+  /** Holds the simulation regardless of timeScale (which slow motion rewrites every frame). For dev tools stepping by hand. */
+  hold = false;
+
   private accumulator = 0;
   private last: number | null = null;
   private host: AnimationLoopHost | null = null;
@@ -99,7 +102,7 @@ export class FixedStepLoop {
     const frameDt = this.last === null ? 0 : Math.min(Math.max(now - this.last, 0), this.maxFrame);
     this.last = now;
 
-    this.accumulator += frameDt * this.timeScale;
+    if (!this.hold) this.accumulator += frameDt * this.timeScale;
 
     let n = 0;
     while (this.accumulator >= this.dt && n < this.maxSteps) {

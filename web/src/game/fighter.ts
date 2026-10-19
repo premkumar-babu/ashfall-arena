@@ -533,8 +533,9 @@ export function createFighter(def: FighterDef, slot: number): Fighter {
     armF.fist.add(weapon);
   }
 
-  const fist = makeVolume(armF.fist, 0.64 * rc, 0.56 * rc, 0.64 * rc, PAL.strike);
-  const foot = makeVolume(legF.foot, 0.86 * rc, 0.62 * rc, 0.86 * rc, PAL.strike);
+  // a touch deeper than the fist itself, so a jab still lands from the wider pushbox gap
+  const fist = makeVolume(armF.fist, 0.78 * rc, 0.56 * rc, 0.64 * rc, PAL.strike);
+  const foot = makeVolume(legF.foot, 0.98 * rc, 0.62 * rc, 0.86 * rc, PAL.strike);
   // the blade sweeps a long, thin volume; unarmed fighters never use it
   const blade = def.armed && bladeZone
     ? makeVolume(bladeZone, def.heavyReach * 0.55 * sc, 0.85 * sc, 0.7 * sc, PAL.gold)
