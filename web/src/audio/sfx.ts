@@ -64,6 +64,9 @@ function roomImpulse(ctx: BaseAudioContext, seconds: number, decay: number): Aud
 
 export class SfxEngine {
   private ctx: AudioContext | null = null;
+  /** Offline renders only: seconds added to every start time, so later() can place a voice without a real timer. */
+  private offset = 0;
+  private offline = false;
   private master: GainNode | null = null;
   private sfxGain: GainNode | null = null;
   private musicGain: GainNode | null = null;
@@ -128,7 +131,12 @@ export class SfxEngine {
     if (!AC) return;
 
     const ctx = new AC({ latencyHint: 'interactive' });
+    this.build(ctx);
+    this.emit();
+  }
 
+  /** The whole effects graph on any context: the live one, or an offline one for a measurement. */
+  private build(ctx: BaseAudioContext): void {
     const limiter = ctx.createDynamicsCompressor();
     limiter.threshold.value = -9;
     limiter.knee.value = 6;
@@ -165,12 +173,25 @@ export class SfxEngine {
     const data = noise.getChannelData(0);
     for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
 
-    this.ctx = ctx;
+    this.ctx = ctx as AudioContext;
     this.master = master;
     this.reverbIn = reverbIn;
     this.noise = noise;
     this.enabled = true;
-    this.emit();
+  }
+
+  /**
+   * Dev only: play some effects into a fresh engine on an OfflineAudioContext
+   * and return the rendered buffer, so a sound can be measured without being
+   * heard. later() steps become exact offsets instead of timers.
+   */
+  static async renderOffline(play: (e: SfxEngine) => void, seconds = 2, rate = 48000): Promise<AudioBuffer> {
+    const ctx = new OfflineAudioContext(2, Math.ceil(seconds * rate), rate);
+    const e = new SfxEngine();
+    e.offline = true;
+    e.build(ctx);
+    play(e);
+    return ctx.startRendering();
   }
 
   /** A hidden tab: stop the audio clock, so a backgrounded game costs no battery. */
@@ -460,7 +481,17 @@ export class SfxEngine {
     g.gain.setTargetAtTime(v, this.ctx.currentTime, 0.02);
   }
 
+  /** The audio clock, plus the offline offset. */
+  private now(): number {
+    return this.ctx!.currentTime + this.offset;
+  }
+
   private later(ms: number, fn: () => void): void {
+    if (this.offline) {
+      this.offset += ms / 1000;
+      try { fn(); } finally { this.offset -= ms / 1000; }
+      return;
+    }
     const id = window.setTimeout(() => {
       this.timers.delete(id);
       fn();
@@ -476,7 +507,7 @@ export class SfxEngine {
   private env(node: AudioNode, peak: number, attack: number, decay: number, o: VoiceOpts): number {
     const ctx = this.ctx!;
     const g = ctx.createGain();
-    const t = ctx.currentTime;
+    const t = this.now();
     // a little level variation, so a flurry of identical blows does not machine-gun
     const level = Math.max(0.0002, peak * (0.92 + Math.random() * 0.16));
     g.gain.setValueAtTime(0.0001, t);
@@ -506,12 +537,13 @@ export class SfxEngine {
     const j = 1 + (Math.random() - 0.5) * 2 * (o.jitter ?? 0.03);
     const osc = ctx.createOscillator();
     osc.type = type;
-    osc.frequency.setValueAtTime(f0 * j, ctx.currentTime);
-    if (f1 !== f0) osc.frequency.exponentialRampToValueAtTime(Math.max(1, f1 * j), ctx.currentTime + attack + decay);
+    const t = this.now();
+    osc.frequency.setValueAtTime(f0 * j, t);
+    if (f1 !== f0) osc.frequency.exponentialRampToValueAtTime(Math.max(1, f1 * j), t + attack + decay);
     const end = this.env(osc, peak, attack, decay, o);
     this.voices++;
     osc.onended = () => { this.voices--; };
-    osc.start();
+    osc.start(t);
     osc.stop(end + 0.02);
   }
 
@@ -530,7 +562,7 @@ export class SfxEngine {
     this.voices++;
     src.onended = () => { this.voices--; };
     // a random read head: the same buffer never plays the same grain twice in a row
-    src.start(0, Math.random() * 1.5);
+    src.start(this.now(), Math.random() * 1.5);
     src.stop(end + 0.02);
   }
 }

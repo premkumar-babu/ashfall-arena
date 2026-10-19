@@ -5,6 +5,7 @@ import { ASSETS } from './assets/models';
 import { CLIPS } from './assets/loader';
 import { Assets } from './assets/pipeline';
 import { cpuDuel, probeCombat, probeFinishers, probeReach, raw as harnessRaw, probeGaits, runMonkey, startFight } from './dev/harness';
+import { audioProbe } from './dev/audio-probe';
 import { Governor } from './core/frame-governor';
 import { feelDebug } from './fx/juice';
 import { INSTANCING } from './world/instancing';
@@ -81,7 +82,7 @@ export function installDebugHooks({ renderer, backend, loop }: DebugContext): vo
   };
 
   window.__ash = {
-    scene, camera, renderer, rigs, assistRigs, loop, lib: ClipLib, assets: ASSETS, themes: THEMES,
+    scene, camera, renderer, rigs, assistRigs, loop, audioProbe, lib: ClipLib, assets: ASSETS, themes: THEMES,
     // the asset pipeline: cache, counters, per-stage progress; instancing and prop LOD buckets
     pipeline: Assets,
     loading: () => Assets.snapshot(),
