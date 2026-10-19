@@ -165,8 +165,8 @@ export const PAD_ACTIONS: ReadonlyArray<{ readonly id: PadAction; readonly name:
 
 const PAD_DEFAULTS: Readonly<Record<PadAction, number>> = { jump: 0, assist: 1, punch: 2, kick: 3, dash: 4, power: 5 };
 const PAD_STORE = 'ashfall.pad';
-/** Face, shoulder, trigger and stick-click buttons. D-pad and START are left alone. */
-export const PAD_REMAPPABLE: readonly number[] = [0, 1, 2, 3, 4, 5, 6, 7, 10, 11];
+/** Face, shoulder and stick-click buttons. The triggers stay block and the d-pad stays movement. */
+export const PAD_REMAPPABLE: readonly number[] = [0, 1, 2, 3, 4, 5, 10, 11];
 const PAD_NAMES: Readonly<Record<number, string>> = {
   0: 'A', 1: 'B', 2: 'X', 3: 'Y', 4: 'LB', 5: 'RB', 6: 'LT', 7: 'RT', 8: 'Back', 9: 'Start', 10: 'L-Stick', 11: 'R-Stick',
 };

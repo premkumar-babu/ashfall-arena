@@ -636,7 +636,7 @@ function bodySlot(f: Fighter, dt: number): AnimSlot {
   }
   if (f.won && !air && (s === 'IDLE' || s === 'WALK') && acts.WIN) return 'WIN';
   if (s === 'PUNCH' && f.move?.name === 'THROW' && acts.THROW) return 'THROW';
-  if (f.riposteT > 0 && !air && s !== 'HITSTUN' && s !== 'KO' && acts.RIPOSTE) return 'RIPOSTE';
+  if (f.riposteT > 0 && !air && (s === 'IDLE' || s === 'WALK' || s === 'BLOCK') && acts.RIPOSTE) return 'RIPOSTE';
   if (s === 'BLOCK' && f.blockFlash > 0.3 && acts.BLOCK_HIT) return 'BLOCK_HIT';
   if (s !== 'IDLE' && s !== 'WALK' && s !== 'JUMP') return s;
   if (air) return 'JUMP';
@@ -753,7 +753,8 @@ function warpAttack(f: Fighter, a: THREE.AnimationAction): void {
 function warpHurt(f: Fighter, a: THREE.AnimationAction): void {
   if (f.launched || f.downT > 0) { a.timeScale = 1; return; }
   const D = a.getClip().duration;
-  const stun = Math.max(0.2, f.stunTime);
+  // throws and cinematics hold the stun open with a sentinel; the reaction still plays out
+  const stun = clamp(f.stunTime, 0.2, 0.9);
   a.timeScale = 0;
   a.time = Math.min(D * 0.95, (f.stateTime / stun) * D * 0.95);
 }

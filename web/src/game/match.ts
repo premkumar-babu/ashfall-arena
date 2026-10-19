@@ -16,6 +16,7 @@ import { enterState } from './fsm';
 import { resetBodyLanguage } from './pose';
 import { emberHolder, resetRush } from './rush';
 import { hideTraining, resetTraining } from './training';
+import { closeFeedback } from '../ui/feedback';
 import { resetFinish } from './finish';
 import { resetSpecials } from './specials';
 import { resetFatalBlows } from './fatalblow';
@@ -405,6 +406,7 @@ export function showResults(champ: Fighter | null): void {
 }
 
 export function hideResults(): void {
+  closeFeedback();
   if (document.body.classList.contains('results')) releaseFocus();
   document.body.classList.remove('results');
 }

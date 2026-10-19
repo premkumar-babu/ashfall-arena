@@ -229,7 +229,7 @@ function stepShot(f: Fighter, foe: Fighter, s: Shot, dt: number): void {
         owner: f, attacker: f, fromX: s.x - s.dir, dir: s.dir,
         damage: BOLT.damage * f.def.power, knockback: BOLT.knockback, hitstun: BOLT.hitstun,
         shake: 0.9, contact: _v.set(s.x, s.y, PLANE_Z + 0.2), label: specialOf(f).name,
-        sparkColor: f.def.accent, burst: 40, burstSpeed: 8,
+        sparkColor: f.def.accent, burst: 40, burstSpeed: 8, projectile: true,
       });
       kill(s, true);
       return;
@@ -245,7 +245,7 @@ function stepShot(f: Fighter, foe: Fighter, s: Shot, dt: number): void {
           owner: f, attacker: f, fromX: s.x - s.dir, dir: s.dir,
           damage: SPEAR.damage * f.def.power, knockback: 0, hitstun: SPEAR.hitstun,
           shake: 0.8, contact: _v.set(s.x, s.y, PLANE_Z + 0.2), label: specialOf(f).name,
-          sparkColor: f.def.accent, burst: 24, burstSpeed: 6,
+          sparkColor: f.def.accent, burst: 24, burstSpeed: 6, projectile: true,
         });
         // it bit: drag them back along the chain, off their feet
         if (landed && foe.state === S.HITSTUN) {

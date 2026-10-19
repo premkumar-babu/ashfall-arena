@@ -496,14 +496,17 @@ export function probeFinishers(): Array<Record<string, unknown>> {
     state.P1.x = -0.7; state.P2.x = 0.7;
     state.P1.physicsBody?.teleport(-0.7, 0); state.P2.physicsBody?.teleport(0.7, 0);
     state.P1.rounds = 1;                              // one round up, so this one decides the match
+    state.P1.hp = 20;                                 // low enough for a fatal blow: Overdrive must still be the fatality
     state.P2.hp = 2;
     key('p1', 'punch', false); run(0.03); key('p1', 'punch', true);
     run(0.5);
     row.finishing = finishing();
     key('p1', 'power', false); run(0.05); key('p1', 'power', true);
     let sawFatality = false;
-    run(9, () => { if (inFatality()) sawFatality = true; });
+    let stolen = false;
+    run(9, () => { if (inFatality()) sawFatality = true; if (inFatalBlow()) stolen = true; });
     row.fatality = sawFatality;
+    row.fatalBlowStoleIt = stolen;
     row.over = match.over;
     // the fatal blow: Overdrive at low health
     startFight({ p1: i, p2: (i + 2) % 4, versus: true });

@@ -109,6 +109,7 @@ export function openFeedback(p1: Fighter, p2: Fighter): void {
 }
 
 export function closeFeedback(): void {
-  root?.classList.remove('on');
+  if (!root?.classList.contains('on')) return;
+  root.classList.remove('on');
   document.getElementById('rfeedback')?.focus();
 }

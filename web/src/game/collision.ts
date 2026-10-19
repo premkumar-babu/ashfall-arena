@@ -74,6 +74,8 @@ export interface HitOptions {
   extraRings?: number;
   /** Upward speed for a grounded victim: a launcher or a trip. */
   launch?: number;
+  /** A bolt or a spear: the shooter's own state says nothing about this blow. */
+  projectile?: boolean;
 }
 
 export function syncBoxes(f: Fighter): void {
@@ -132,7 +134,7 @@ export function landHit(def: Fighter, o: HitOptions): boolean {
   /* Bronzemaw's heavy carries armour: a blow landing in its wind-up or swing
      still hurts, but the swing goes on. Throws, specials and summons are not
      stopped by it, and only the first blow of the swing is absorbed. */
-  if (def.gait.heavyArmor && def.state === S.KICK && def.move === MOVES.KICK && !def.armorUsed
+  if (def.gait.heavyArmor && def.state === S.KICK && def.move === MOVES.KICK && !def.armorUsed && !o.projectile
     && def.stateTime < def.move.startup + def.move.active && o.attacker && o.attacker.move && !o.attacker.move.special
     && def.hp > o.damage * (o.mult ?? 1) * 0.75) {                // a blow that would finish them still does
     def.armorUsed = true;
@@ -162,7 +164,7 @@ export function landHit(def: Fighter, o: HitOptions): boolean {
   const juggling = !def.grounded && def.launched;
   /* A fresh guard against a fighter's own blow (never a summon, projectile or
      cinematic) turns it back on them. Held guard is just a block. */
-  const parried = blocked && def.stateTime < PARRY_WINDOW && state.elapsed - def.guardDropAt > PARRY_RECOVER && !!o.attacker && !!o.attacker.move && !o.attacker.move.special
+  const parried = blocked && !o.projectile && def.stateTime < PARRY_WINDOW && state.elapsed - def.guardDropAt > PARRY_RECOVER && !!o.attacker && !!o.attacker.move && !o.attacker.move.special
     && o.attacker.state !== S.KO;
   const dmg = parried ? 0 : blocked ? o.damage * 0.22 : o.damage * (o.mult ?? 1) * (juggling ? JUGGLE.damage : 1);
 

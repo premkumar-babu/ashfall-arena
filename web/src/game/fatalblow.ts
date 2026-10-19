@@ -12,6 +12,7 @@ import { landHit } from './collision';
 import type { Fighter } from './fighter';
 import { attackPhase, enterState } from './fsm';
 import { ACT, type Intent } from './intent';
+import { finishing } from './finish';
 import { match } from './match';
 import { state } from './state';
 
@@ -92,7 +93,8 @@ export function fatalArmored(f: Fighter): boolean {
 
 /** Called by the state machine: OVERDRIVE at low health is the fatal blow instead. */
 export function tryFatalBlow(f: Fighter, intent: Intent): boolean {
-  if (!intent.powerDown || !fatalReady(f) || !f.grounded) return false;
+  // at FINISH THEM the same button is the fatality; a low-health winner must not get a fatal blow instead
+  if (!intent.powerDown || !fatalReady(f) || !f.grounded || finishing()) return false;
   intent.consumed |= ACT.POWER;
   intent.powerDown = false;                        // and not Overdrive as well
   rt(f).lunged = false;
