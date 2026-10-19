@@ -27,6 +27,7 @@ export function enterState(f: Fighter, next: FighterState, move: Move | null = n
   f.hitLanded = false;
   f.activeHitbox = null;
   f.arcFired = false;                 // per-attack, not per-lifetime
+  if (next !== S.PUNCH && next !== S.KICK) f.chain = 0;
   if (next === S.PUNCH || next === S.KICK) {
     f.lockFace = f.face;              // committing to a swing commits the facing
     f.airMove = !f.grounded;
@@ -117,6 +118,39 @@ function tryAttack(f: Fighter, intent: Intent): boolean {
   return false;
 }
 
+/*
+  Hit-cancels. Once a light or heavy has connected, the recovery can be cut
+  short into a special or into the next normal, as long as the string is still
+  inside this fighter's chain length. Whiffs cannot cancel, so a string is a
+  reward for landing, never a free pressure tool. A held guard turns the next
+  punch into the launcher, which always ends the string.
+*/
+function tryCancel(f: Fighter, intent: Intent): boolean {
+  const m = f.move;
+  if (!m || !f.hitLanded || !f.grounded) return false;
+  if (m !== MOVES.PUNCH && m !== MOVES.KICK) return false;
+  if (f.stateTime < m.startup + m.active) return false;
+  if (intent.specialDown && trySpecial(f, intent)) return true;
+  if (f.chain >= f.gait.chainMax) return false;
+  const chain = f.chain + 1;
+  const low = intent.block;
+  if (intent.punchDown) {
+    intent.consumed |= ACT.PUNCH;
+    enterState(f, S.PUNCH, low ? MOVES.UPPERCUT : MOVES.PUNCH);
+    f.chain = low ? f.gait.chainMax : chain;
+    Sfx.whiff(f.x);
+    return true;
+  }
+  if (intent.kickDown) {
+    intent.consumed |= ACT.KICK;
+    enterState(f, S.KICK, low ? MOVES.SWEEP : MOVES.KICK);
+    f.chain = low ? f.gait.chainMax : chain;
+    Sfx.whiff(f.x);
+    return true;
+  }
+  return false;
+}
+
 export function stepState(f: Fighter, intent: Intent, dt: number): void {
   f.stateTime += dt;
   if (f.dashCd > 0) f.dashCd -= dt;
@@ -157,6 +191,7 @@ export function stepState(f: Fighter, intent: Intent, dt: number): void {
     case S.PUNCH:
     case S.KICK: {
       const move = f.move!;
+      if (tryCancel(f, intent)) break;
       const phase = attackPhase(f);
       // a special's blow is its bolt, spear or body (specials.ts), never the limb
       f.activeHitbox = phase === 'active' && !f.hitLanded && !move.special ? f.hitboxes[limbFor(f, move)] : null;

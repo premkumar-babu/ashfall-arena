@@ -1,11 +1,11 @@
 import * as THREE from 'three/webgpu';
-import { A, FLASH_FRAMES, JUGGLE, METER, MOVES, PAL, PLANE_Z, S } from '../config/constants';
+import { A, BOUND, FLASH_FRAMES, JUGGLE, METER, MOVES, PAL, PLANE_Z, S } from '../config/constants';
 import { MOVEMENT } from '../config/controls';
 import { Sfx } from '../audio/sfx';
 import { clamp } from '../core/math';
 import { pool, spray } from '../fx/blood';
 import { Flip } from '../fx/flipbook';
-import { impact, knockout } from '../fx/juice';
+import { addTrauma, impact, knockout } from '../fx/juice';
 import { Burst } from '../fx/particles';
 import { strikeLights } from '../fx/strike-lights';
 import { spark, spawnRing, spawnRingLater, spawnStreaks } from '../fx/vfx';
@@ -39,6 +39,13 @@ const _center = new THREE.Vector3();
 const _contactBox = new THREE.Box3();
 const _contact = new THREE.Vector3();
 const _feet = new THREE.Vector3();
+
+/** A guard raised this recently when the blow arrives is a parry: no damage, and the attacker is thrown open. */
+export const PARRY_WINDOW = 0.09;
+const PARRY_STUN = 0.5;
+/** Within this of the wall a blow shoves the attacker back instead, and a heavy one splats the victim. */
+const CORNER = 1.1;
+const SPLAT_DAMAGE = 3;
 
 const BLOCK_FLARE = legacyIntensity(0.9);
 const HIT_FLARE = legacyIntensity(1.8);
@@ -123,7 +130,11 @@ export function landHit(def: Fighter, o: HitOptions): boolean {
   const blocked = def.state === S.BLOCK && facingAttacker;
   // follow-ups on a launched fighter are scaled, so a juggle is a reward, not a kill from full
   const juggling = !def.grounded && def.launched;
-  const dmg = blocked ? o.damage * 0.22 : o.damage * (o.mult ?? 1) * (juggling ? JUGGLE.damage : 1);
+  /* A fresh guard against a fighter's own blow (never a summon, projectile or
+     cinematic) turns it back on them. Held guard is just a block. */
+  const parried = blocked && def.stateTime < PARRY_WINDOW && !!o.attacker && !!o.attacker.move && !o.attacker.move.special
+    && o.attacker.state !== S.KO;
+  const dmg = parried ? 0 : blocked ? o.damage * 0.22 : o.damage * (o.mult ?? 1) * (juggling ? JUGGLE.damage : 1);
 
   const before = def.hp;
   def.hp = Math.max(0, def.hp - dmg);
@@ -144,7 +155,31 @@ export function landHit(def: Fighter, o: HitOptions): boolean {
     o.lightSource.intensity = blocked ? BLOCK_FLARE : HIT_FLARE;
   }
 
-  if (blocked) {
+  if (parried && o.attacker) {
+    const att = o.attacker;
+    def.vx = 0;
+    def.blockFlash = 1;
+    att.hitDir = -o.dir;
+    att.stunTime = PARRY_STUN;
+    att.vx = -o.dir * 4.5;
+    enterState(att, S.HITSTUN);
+    att.flash = 0.6;
+    gainMeter(def, METER.perBlock * 3);
+    impact('block', { victim: def.slot === 0 ? 0 : 1 });
+    spark(_center, 0xFFF2C0);
+    spawnRing(_center, 0xFFF2C0);
+    spawnRingLater(_center, 0x9FE8FF, 0.06);
+    Flip.play('clash', _center, 1.9, 0xFFF2C0, Math.random() * 6.28);
+    Burst.emit(_center, 0xFFF2C0, 22, 6, 0.2);
+    Sfx.block(_center.x);
+    hitFeedback(o.owner?.slot ?? null, def.slot, 'block');
+    if (att.combo) {
+      att.combo = 0;
+      att.comboTimer = 0;
+      clearCombo(att);
+    }
+    match.lastTrade = `${o.label} → PARRIED`;
+  } else if (blocked) {
     def.vx = 0;
     def.blockFlash = 1;
     if (o.attacker) o.attacker.vx -= o.dir * 3.4;
@@ -166,6 +201,22 @@ export function landHit(def: Fighter, o: HitOptions): boolean {
     match.lastTrade = `${o.label} → BLOCKED`;
   } else {
     def.vx = o.dir * o.knockback;
+    /* Cornered: the blow cannot push them anywhere, so the attacker is shoved
+       back instead; a heavy one splats the victim off the wall for bonus damage.
+       Never a ring-out: the wall always holds. */
+    const cornered = def.x * o.dir > BOUND - CORNER && !!o.attacker;
+    if (cornered && o.attacker) {
+      o.attacker.vx -= o.dir * Math.min(o.knockback, 9) * 0.55;
+      if (o.knockback >= 8 && def.hp > SPLAT_DAMAGE + 1) {
+        def.hp -= SPLAT_DAMAGE;
+        if (o.owner) o.owner.dealt += SPLAT_DAMAGE;
+        def.vx = -o.dir * 2.2;
+        addTrauma(0.2);
+        Burst.emit(_feet.set(def.x + o.dir * 0.5, 1.6, PLANE_Z), 0xC9BCA2, 16, 4, 0.5);
+        spawnRing(_feet.set(def.x + o.dir * 0.5, 1.5, PLANE_Z), 0xE8DCC4);
+        Sfx.land(1, def.x);
+      }
+    }
     def.flash = 1;
     def.white = FLASH_FRAMES;          // blown-out white for the freeze + 2 frames
     applyFlash(def);                   // apply now: the freeze renders before the next pose

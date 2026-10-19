@@ -113,6 +113,8 @@ export interface Fighter {
   stateTime: number;
   move: Move | null;
   hitLanded: boolean;
+  /** Normals chained off landed hits in the current string. */
+  chain: number;
   activeHitbox: Volume | null;
   stunTime: number;
   lockFace: number;
@@ -544,7 +546,7 @@ export function createFighter(def: FighterDef, slot: number): Fighter {
 
     dealt: 0, bestCombo: 0,
     state: S.IDLE, stateTime: 0, move: null,
-    hitLanded: false, activeHitbox: null, stunTime: 0,
+    hitLanded: false, chain: 0, activeHitbox: null, stunTime: 0,
     lockFace: 0, airMove: false, land: 0, hitDir: 0,
     prevVx: 0, accel: 0, flip: 0, flipDir: 1, flipTime: 0.42, zip: 0, landT: 0, landLag: 0, wasAir: false, running: false,
     launched: false, juggles: 0, downT: 0, dazed: false, crouch: 0, comboDmg: 0,

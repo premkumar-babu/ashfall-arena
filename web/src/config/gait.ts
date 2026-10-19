@@ -59,6 +59,8 @@ export interface Gait {
   leanGain: number;
   /** Extra tilt when a jump leaves the ground, in radians. */
   jumpTuck: number;
+  /** How many normals a landed hit can be cancelled into, in a row. */
+  chainMax: number;
 }
 
 const BASE: Gait = {
@@ -67,7 +69,7 @@ const BASE: Gait = {
   dashSpeed: 15.5, dashTime: 0.17, dashCd: 0.42,
   landLag: 0.05, landSlow: 0.5, landThump: 0,
   cadence: 10.5, stride: 0.85, bob: 0.10, sway: 0.028, idleSway: 0.18,
-  idleRate: 2.1, idleDepth: 0.05, stance: 0, splay: 0, runLean: 0.07, leanGain: 1, jumpTuck: 0,
+  idleRate: 2.1, idleDepth: 0.05, stance: 0, splay: 0, runLean: 0.07, leanGain: 1, jumpTuck: 0, chainMax: 3,
 };
 
 const GAITS: Record<string, Gait> = {
@@ -80,7 +82,7 @@ const GAITS: Record<string, Gait> = {
     dashSpeed: 17.5, dashTime: 0.21, dashCd: 0.5,
     landLag: 0.03, landSlow: 0.7, landThump: 0,
     cadence: 8.2, stride: 0.7, bob: 0.05, sway: 0.012, idleSway: 0.08,
-    idleRate: 1.5, idleDepth: 0.035, stance: -0.04, splay: -0.03, runLean: 0.12, leanGain: 1.3, jumpTuck: 0.05,
+    idleRate: 1.5, idleDepth: 0.035, stance: -0.04, splay: -0.03, runLean: 0.12, leanGain: 1.3, jumpTuck: 0.05, chainMax: 4,
   },
 
   bronzemaw: {
@@ -90,7 +92,7 @@ const GAITS: Record<string, Gait> = {
     dashSpeed: 13.5, dashTime: 0.14, dashCd: 0.55,
     landLag: 0.16, landSlow: 0.2, landThump: 0.1,
     cadence: 7.0, stride: 1.0, bob: 0.2, sway: 0.05, idleSway: 0.26,
-    idleRate: 1.6, idleDepth: 0.085, stance: 0.14, splay: 0.12, runLean: 0.1, leanGain: 0.7, jumpTuck: -0.04,
+    idleRate: 1.6, idleDepth: 0.085, stance: 0.14, splay: 0.12, runLean: 0.1, leanGain: 0.7, jumpTuck: -0.04, chainMax: 2,
   },
 
   nocturne: {
@@ -100,7 +102,7 @@ const GAITS: Record<string, Gait> = {
     dashSpeed: 19.5, dashTime: 0.12, dashCd: 0.3,
     landLag: 0.02, landSlow: 0.8, landThump: 0,
     cadence: 13.5, stride: 0.95, bob: 0.13, sway: 0.075, idleSway: 0.42,
-    idleRate: 3.1, idleDepth: 0.06, stance: 0.08, splay: 0.06, runLean: 0.15, leanGain: 1.6, jumpTuck: 0.1,
+    idleRate: 3.1, idleDepth: 0.06, stance: 0.08, splay: 0.06, runLean: 0.15, leanGain: 1.6, jumpTuck: 0.1, chainMax: 4,
   },
 };
 
