@@ -638,7 +638,8 @@ function setRate(f: Fighter, slot: AnimSlot): void {
     const dir = f.vx !== 0 && Math.sign(f.vx) !== f.face ? -1 : 1;
     a.timeScale = clamp(Math.abs(f.vx) / gait(f, slot), lo, hi) * dir;
   } else {
-    a.timeScale = slot === 'LAND' ? LAND.rate : 1;
+    // idle breathes at the fighter's own rate; a heavy landing plays out slower than a light one
+    a.timeScale = slot === 'LAND' ? LAND.rate * (0.75 + 0.25 * (0.05 / Math.max(0.02, f.gait.landLag)) ** 0.5) : slot === 'IDLE' ? f.gait.idleRate / 2.1 : 1;
   }
 }
 

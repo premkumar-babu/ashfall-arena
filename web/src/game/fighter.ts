@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { GROUND, METER, PAL, S, SPAWN_X, type FighterState, type Move } from '../config/constants';
+import { gaitOf, type Gait } from '../config/gait';
 import type { FighterDef } from '../config/roster';
 import type { ActionMap, AnimSlot, BoneRig } from '../anim/types';
 import type { CharacterBody } from '../physics/port';
@@ -69,6 +70,8 @@ export interface Hitboxes {
 */
 export interface Fighter {
   readonly def: FighterDef;
+  /** How this fighter moves: start, stop, jump, dash and stride (config/gait.ts). */
+  readonly gait: Gait;
   readonly slot: number;
 
   // ── primitive rig ──
@@ -141,6 +144,8 @@ export interface Fighter {
   zip: number;
   /** Seconds of landing clip left to show. */
   landT: number;
+  /** Seconds of slowed walking left after a hard landing. */
+  landLag: number;
   wasAir: boolean;
   /** Which of walk and run is showing, held with hysteresis so the blend does not chatter at the boundary. */
   running: boolean;
@@ -527,7 +532,7 @@ export function createFighter(def: FighterDef, slot: number): Fighter {
   root.add(aura);
 
   return {
-    def, slot, root, body, lean, spin, torso, neck,
+    def, gait: gaitOf(def.id), slot, root, body, lean, spin, torso, neck,
     armF, armB, legF, legB, cape, blob,
     glow, skin, powerLight,
     trail: createTrail(def.accent),
@@ -541,7 +546,7 @@ export function createFighter(def: FighterDef, slot: number): Fighter {
     state: S.IDLE, stateTime: 0, move: null,
     hitLanded: false, activeHitbox: null, stunTime: 0,
     lockFace: 0, airMove: false, land: 0, hitDir: 0,
-    prevVx: 0, accel: 0, flip: 0, flipDir: 1, flipTime: 0.42, zip: 0, landT: 0, wasAir: false, running: false,
+    prevVx: 0, accel: 0, flip: 0, flipDir: 1, flipTime: 0.42, zip: 0, landT: 0, landLag: 0, wasAir: false, running: false,
     launched: false, juggles: 0, downT: 0, dazed: false, crouch: 0, comboDmg: 0,
     dashTime: 0, dashCd: 0, dashDir: 1,
     airTime: 0, jumpReleased: true,

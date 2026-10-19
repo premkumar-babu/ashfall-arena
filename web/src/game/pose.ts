@@ -91,14 +91,19 @@ function bodyLanguage(f: Fighter, dt: number): void {
   } else if (f.state === S.KO || f.state === S.HITSTUN) {
     pitch = 0;                                               // those clips carry their own weight
   } else if (f.grounded) {
-    pitch = clamp(f.accel * fwd * 0.0042, -0.26, 0.26) + pace * 0.07 + (f.dashTime > 0 ? 0.2 : 0);
+    const G = f.gait;
+    pitch = clamp(f.accel * fwd * 0.0042 * G.leanGain, -0.26, 0.26) + pace * G.runLean + (f.dashTime > 0 ? 0.2 : 0);
+    // a heavy body sinks into a landing; the weaving fighter rolls from foot to foot
+    drop = G.stance + (f.landLag > 0 ? G.landLag * 2.2 : 0);
+    roll = Math.sin(t * G.cadence * 0.5 + f.phase) * G.sway * (0.3 + Math.min(1, Math.abs(f.vx) / f.def.speed)) * 2.4
+      + Math.sin(t * G.idleRate * 0.7 + f.phase) * G.idleSway * 0.06;
     // a hard stop or turn at speed kicks up dust at the heels
     const braking = Math.abs(f.vx) > 3.5 && Math.sign(f.accel) !== Math.sign(f.vx) && Math.abs(f.accel) > 35;
     if (braking && Math.random() < 0.5) {
       Burst.emit(_dust.set(f.x + Math.sign(f.vx) * 0.3, 0.12, PLANE_Z), 0xC9BCA2, 2, 2.2, 0.45);
     }
   } else {
-    pitch = clamp(-f.vy * 0.01, -0.1, 0.14) + pace * 0.05;
+    pitch = clamp(-f.vy * 0.01, -0.1, 0.14) + pace * 0.05 + f.gait.jumpTuck * (f.vy > 0 ? 1 : -0.5);
   }
   pitch += f.zip * 0.5;
   f.lean.rotation.x = damp(f.lean.rotation.x, pitch, f.downT > 0 ? 11 : 16, dt);
@@ -149,9 +154,10 @@ export function poseFighter(f: Fighter, dt: number, t: number): void {
   // RUSH turns with the stick, so a turn has to be quick enough to read as a decision
   f.root.rotation.y = damp(f.root.rotation.y, f.face * Math.PI / 2, state.rush ? 22 : 12, dt);
 
+  const G = f.gait;
   const speed = Math.abs(f.vx) / f.def.speed;
-  const idle = t * 2.1 + f.phase;
-  const stride = t * 10.5 + f.phase;
+  const idle = t * G.idleRate + f.phase;
+  const stride = t * G.cadence + f.phase;
   /* An armed fighter's heavy is a SLASH and the blade hangs off the lead fist,
      so it is driven from the arm. Only unarmed heavies are kicks. */
   const punching = f.state === S.PUNCH;
@@ -193,7 +199,7 @@ export function poseFighter(f: Fighter, dt: number, t: number): void {
   const recoil = f.state === S.HITSTUN ? 1 : 0;
   const guard = f.state === S.BLOCK ? 1 : 0;
 
-  b.position.y = -0.13 + Math.sin(idle) * 0.05 + Math.abs(Math.sin(stride)) * 0.10 * speed;
+  b.position.y = -0.13 - G.stance * 0.5 + Math.sin(idle) * G.idleDepth + Math.abs(Math.sin(stride)) * G.bob * speed;
   // a blow knocks them sideways as well as back, away from where it came from
   b.rotation.z = damp(b.rotation.z, -f.vx * 0.028 + recoil * f.hitDir * 0.24, 14, dt);
   b.rotation.x = damp(
@@ -202,12 +208,12 @@ export function poseFighter(f: Fighter, dt: number, t: number): void {
     16, dt,
   );
   // hips lead the strike, which is what sells a punch
-  f.torso.rotation.y = 0.30 + Math.sin(idle * 0.8) * 0.06 + f.vx * 0.02
+  f.torso.rotation.y = 0.30 + Math.sin(idle * 0.8) * 0.06 + f.vx * 0.02 + Math.sin(idle * 0.9) * G.idleSway * 0.1
     - (punching ? ext * 0.85 : 0) - (kicking ? ext * 0.45 : 0)
     - (slash ? clamp(ext, 0, 1) * 0.70 - clamp(-ext / 0.22, 0, 1) * 0.35 : 0);
   f.neck.rotation.x = Math.sin(idle * 1.1) * 0.05 - 0.06 + recoil * 0.30;
 
-  const swing = Math.sin(stride) * 0.85 * speed;
+  const swing = Math.sin(stride) * G.stride * speed;
   const air = f.grounded ? 0 : 0.55;
 
   if (kicking) {
@@ -220,10 +226,10 @@ export function poseFighter(f: Fighter, dt: number, t: number): void {
     f.legB.knee.rotation.x = damp(f.legB.knee.rotation.x, 0.30 + kreach * 0.16, 18, dt);
   } else {
     // wide horse stance: front leg forward, back leg braced and bent
-    f.legF.hip.rotation.x = damp(f.legF.hip.rotation.x, -0.30 + swing + air * 0.7 + guard * 0.10, 18, dt);
-    f.legB.hip.rotation.x = damp(f.legB.hip.rotation.x, 0.34 - swing + air * 0.3 - guard * 0.10, 18, dt);
-    f.legF.knee.rotation.x = damp(f.legF.knee.rotation.x, 0.30 + Math.max(0, -swing) * 0.9 + air * 0.9, 18, dt);
-    f.legB.knee.rotation.x = damp(f.legB.knee.rotation.x, 0.46 + Math.max(0, swing) * 0.9 + air * 0.5, 18, dt);
+    f.legF.hip.rotation.x = damp(f.legF.hip.rotation.x, -0.30 - G.splay + swing + air * 0.7 + guard * 0.10, 18, dt);
+    f.legB.hip.rotation.x = damp(f.legB.hip.rotation.x, 0.34 + G.splay - swing + air * 0.3 - guard * 0.10, 18, dt);
+    f.legF.knee.rotation.x = damp(f.legF.knee.rotation.x, 0.30 + G.stance * 1.4 + Math.max(0, -swing) * 0.9 + air * 0.9, 18, dt);
+    f.legB.knee.rotation.x = damp(f.legB.knee.rotation.x, 0.46 + G.stance * 1.4 + Math.max(0, swing) * 0.9 + air * 0.5, 18, dt);
   }
 
   if (punching) {
@@ -277,10 +283,10 @@ function strikeTrail(f: Fighter, dt: number, t: number): void {
 
   // footfall dust, gated so it fires once per step rather than every frame
   if (f.grounded && Math.abs(f.vx) > 1.6) {
-    const beat = Math.sin(t * 10.5 + f.phase);
+    const beat = Math.sin(t * f.gait.cadence + f.phase);
     if (beat > 0.94 && f.stepGate !== 1) {
       f.stepGate = 1;
-      Burst.emit(_tp.set(f.x - f.face * 0.25, 0.12, PLANE_Z), 0xC9BCA2, 5, 1.7, 0.5);
+      Burst.emit(_tp.set(f.x - f.face * 0.25, 0.12, PLANE_Z), 0xC9BCA2, f.gait.bob > 0.15 ? 9 : 5, 1.7, 0.5);
     } else if (beat < 0.5) {
       f.stepGate = 0;
     }

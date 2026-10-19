@@ -166,17 +166,17 @@ export function driveBones(f: Fighter, t: number): void {
   const face = f.face;
 
   const speed = Math.abs(f.vx) / f.def.speed;
-  const stride = t * 9.5 + f.phase;
-  const swing = Math.sin(stride) * 0.55 * speed;
+  const stride = t * f.gait.cadence * 0.9 + f.phase;
+  const swing = Math.sin(stride) * 0.55 * speed * (f.gait.stride / 0.85);
 
   /* Idle life. Every neutral pose below is a constant direction, so without
      this the model holds one exact stance forever. A breath up the spine and a
      weight shift across the hips, both fading out as the fighter picks up
      speed so they never fight the walk cycle. */
   const calm = 1 - Math.min(1, speed * 1.6);
-  const idleT = t * 1.9 + f.phase;
-  const breath = Math.sin(idleT) * 0.045 * calm;
-  const sway = Math.sin(idleT * 0.63 + 1.1) * 0.035 * calm;
+  const idleT = t * f.gait.idleRate * 0.9 + f.phase;
+  const breath = Math.sin(idleT) * 0.045 * calm * (f.gait.idleDepth / 0.05);
+  const sway = Math.sin(idleT * 0.63 + 1.1) * 0.035 * calm * (f.gait.idleSway / 0.18);
   const punching = f.state === S.PUNCH;
   const slash = slashing(f);
   const kicking = kickingLeg(f);

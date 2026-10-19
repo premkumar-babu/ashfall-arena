@@ -213,7 +213,7 @@ export function launchJump(f: Fighter, dir: number): void {
     f.flipDir = dir === f.face ? 1 : -1;
     f.flipTime = 0.72;
   }
-  f.vy = f.def.jump * (state.rush ? 1 : DUEL_FEEL.jump);
+  f.vy = f.def.jump * (state.rush ? 1 : DUEL_FEEL.jump * f.gait.jump);
   f.grounded = false;
   f.airTime = MOVEMENT.coyoteTime;     // spent: no coyote jump out of a jump
   f.jumpReleased = false;              // the hold that decides this jump's height starts now
@@ -224,10 +224,11 @@ export function launchJump(f: Fighter, dir: number): void {
 }
 
 export function startDash(f: Fighter, dir: number): void {
-  f.dashTime = DASH.time;
-  f.dashCd = DASH.cd;
+  const g = state.rush ? DASH : { speed: f.gait.dashSpeed, time: f.gait.dashTime, cd: f.gait.dashCd };
+  f.dashTime = g.time;
+  f.dashCd = g.cd;
   f.dashDir = dir;
-  f.vx = dir * DASH.speed;
+  f.vx = dir * g.speed;
   Burst.emit(_v.set(f.x - dir * 0.3, 0.35, PLANE_Z), 0xD8CBB0, 12, 4.2, 0.6);
   spawnRing(_v.set(f.x - dir * 0.4, 0.9, PLANE_Z), 0xE8DCC4);
   Sfx.dash(f.x);

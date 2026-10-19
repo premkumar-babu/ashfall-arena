@@ -52,7 +52,8 @@ function steer(f: Fighter, target: number, topSpeed: number, dt: number): void {
   if (f.grounded) {
     const reversing = target !== 0 && f.vx !== 0 && Math.sign(target) !== Math.sign(f.vx);
     const slowing = !reversing && Math.abs(target) < Math.abs(f.vx);
-    const time = reversing ? MOVEMENT.turnTime : slowing ? MOVEMENT.stopTime : MOVEMENT.accelTime;
+    const g = state.rush ? MOVEMENT : f.gait;
+    const time = reversing ? g.turnTime : slowing ? g.stopTime : g.accelTime;
     f.vx = toward(f.vx, target, (topSpeed / time) * dt);
   } else {
     const coasting = target === 0 || (Math.sign(target) === Math.sign(f.vx) && Math.abs(f.vx) > Math.abs(target));
@@ -77,8 +78,10 @@ export function planMotion(f: Fighter, intent: Intent, foe: Fighter, dt: number)
     const duel = !state.rush;
     const toward = intent.move !== 0 && Math.sign(intent.move) === f.face;
     const walk = duel ? (toward ? DUEL_FEEL.walkForward : DUEL_FEEL.walkBack) : 1;
-    const air = duel ? DUEL_FEEL.airControl : MOVEMENT.airControl;
-    steer(f, intent.move * topSpeed * (f.grounded ? walk : air), topSpeed, dt);
+    const air = duel ? f.gait.airControl : MOVEMENT.airControl;
+    // right after a hard landing the legs are still gathering themselves
+    const lag = f.landLag > 0 && duel ? f.gait.landSlow : 1;
+    steer(f, intent.move * topSpeed * (f.grounded ? walk * lag : air), topSpeed, dt);
   } else {
     /* Everything the player is not steering — knockback, K.O. slides, blocking,
        dashes, air attacks — keeps its authored drag profile. */
@@ -89,7 +92,7 @@ export function planMotion(f: Fighter, intent: Intent, foe: Fighter, dt: number)
       drag = 0.8;
     }
     if (f.dashTime > 0) {
-      want = f.dashDir * DASH.speed;
+      want = f.dashDir * (state.rush ? DASH.speed : f.gait.dashSpeed);
       drag = 26;
       if (Math.random() < 0.55) {
         Burst.emit(_v.set(f.x - f.dashDir * 0.35, 0.9 + Math.random() * 0.8, PLANE_Z), f.def.accent, 1, 1.4, 0.3);
@@ -107,9 +110,9 @@ export function planMotion(f: Fighter, intent: Intent, foe: Fighter, dt: number)
       f.jumpReleased = true;
       f.vy = Math.min(f.vy, f.def.jump * MOVEMENT.jumpCut);
     }
-    let g = GRAVITY;
+    let g = GRAVITY * (state.rush ? 1 : f.gait.gravity);
     if (intent.block && f.state === S.JUMP && f.vy < 1) g *= MOVEMENT.fastFall;
-    else if (intent.jumpHeld && Math.abs(f.vy) < MOVEMENT.apexHangVy) g *= MOVEMENT.apexHang;
+    else if (intent.jumpHeld && Math.abs(f.vy) < MOVEMENT.apexHangVy) g *= state.rush ? MOVEMENT.apexHang : f.gait.apexHang;
     f.vy += g * dt;
   } else if (attacking && !f.airMove && !f.move?.special) {
     // a grounded swing steps into the blow rather than sliding on the spot
@@ -119,6 +122,7 @@ export function planMotion(f: Fighter, intent: Intent, foe: Fighter, dt: number)
     else if (ph === 'active') f.vx = damp(f.vx, f.face * lunge, 18, dt);
   }
 
+  if (f.landLag > 0) f.landLag = Math.max(0, f.landLag - dt);
   if (f.flash > 0) f.flash = Math.max(0, f.flash - dt * 4.2);
   if (f.blockFlash > 0) f.blockFlash = Math.max(0, f.blockFlash - dt * 5.0);
 }
@@ -171,7 +175,10 @@ function moveFighter(f: Fighter, dx: number, dt: number): void {
       spawnRing(_v.set(f.x, 0.2, PLANE_Z), 0xD8CBB0);
     }
     // a hard landing thumps the camera a little
-    if (fall > 11) addTrauma(0.14);
+    if (fall > 11) addTrauma(0.14 + f.gait.landThump);
+    else if (fall > 6 && f.gait.landThump > 0) addTrauma(f.gait.landThump * 0.6);
+    // a heavy body takes longer to find its feet again; a light one barely notices
+    if (fall > 6 && !state.rush) f.landLag = f.gait.landLag * clamp(fall / 14, 0.4, 1);
     // how hard they hit the stones, for the squash on the way out
     if (fall > 1.5) f.land = clamp(fall / 15, 0, 1);
     f.vy = 0;
