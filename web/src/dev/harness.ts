@@ -183,6 +183,9 @@ export async function runMonkey(seconds: number, seed = 1, opts: StartOptions = 
         if (lim && f.stateTime > lim) note('stuck', `${f.def.name} in ${f.state} for ${f.stateTime.toFixed(1)}s`);
       }
     }
+    if (finishing()) report.statesSeen.FINISH_THEM = (report.statesSeen.FINISH_THEM ?? 0) + 1;
+    if (inFatality()) report.statesSeen.FATALITY = (report.statesSeen.FATALITY ?? 0) + 1;
+    if (inFatalBlow()) report.statesSeen.FATAL_BLOW = (report.statesSeen.FATAL_BLOW ?? 0) + 1;
     for (const f of state.fighters) {
       report.parries = Math.max(report.parries, f.parries);
       report.bestCombo = Math.max(report.bestCombo, f.bestCombo);
@@ -416,5 +419,50 @@ export function probeReach(): Array<Record<string, unknown>> {
     }
     out.push(row);
   }
+  return out;
+}
+
+/** Every fighter's fatality and fatal blow, played through once, with exceptions caught and reported. */
+export function probeFinishers(): Array<Record<string, unknown>> {
+  const out: Array<Record<string, unknown>> = [];
+  const errors: string[] = [];
+  const run = (seconds: number, each?: () => void): void => {
+    const n = Math.round(seconds / DT);
+    for (let i = 0; i < n; i++) {
+      try { simulate(DT); } catch (e) { errors.push(String((e as Error)?.stack ?? e).split('\n').slice(0, 2).join(' | ')); }
+      each?.();
+    }
+  };
+  for (let i = 0; i < 4; i++) {
+    const row: Record<string, unknown> = { fighter: ['CINDERWARD', 'PALE VIGIL', 'BRONZEMAW', 'NOCTURNE'][i] };
+    // the fatality: a blow that would end the match leaves them standing
+    startFight({ p1: i, p2: (i + 1) % 4, versus: true });
+    run(0.2);
+    state.P1.x = -0.7; state.P2.x = 0.7;
+    state.P1.physicsBody?.teleport(-0.7, 0); state.P2.physicsBody?.teleport(0.7, 0);
+    state.P1.rounds = 1;                              // one round up, so this one decides the match
+    state.P2.hp = 2;
+    key('p1', 'punch', false); run(0.03); key('p1', 'punch', true);
+    run(0.5);
+    row.finishing = finishing();
+    key('p1', 'power', false); run(0.05); key('p1', 'power', true);
+    let sawFatality = false;
+    run(9, () => { if (inFatality()) sawFatality = true; });
+    row.fatality = sawFatality;
+    row.over = match.over;
+    // the fatal blow: Overdrive at low health
+    startFight({ p1: i, p2: (i + 2) % 4, versus: true });
+    run(0.2);
+    state.P1.x = -0.9; state.P2.x = 0.9;
+    state.P1.physicsBody?.teleport(-0.9, 0); state.P2.physicsBody?.teleport(0.9, 0);
+    state.P1.hp = 20;
+    key('p1', 'power', false); run(0.05); key('p1', 'power', true);
+    let sawBlow = false;
+    run(5, () => { if (inFatalBlow()) sawBlow = true; });
+    row.fatalBlow = sawBlow;
+    row.p2hp = +state.P2.hp.toFixed(0);
+    out.push(row);
+  }
+  out.push({ errors });
   return out;
 }

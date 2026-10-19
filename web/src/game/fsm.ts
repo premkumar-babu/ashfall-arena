@@ -21,6 +21,7 @@ const _v = new THREE.Vector3();
 const _arcP = new THREE.Vector3();
 
 export function enterState(f: Fighter, next: FighterState, move: Move | null = null): void {
+  if (f.state === S.BLOCK && next !== S.BLOCK) f.guardDropAt = state.elapsed;
   f.state = next;
   f.stateTime = 0;
   f.move = move;

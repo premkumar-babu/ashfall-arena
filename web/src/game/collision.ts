@@ -44,6 +44,8 @@ const _feet = new THREE.Vector3();
 /** A guard raised this recently when the blow arrives is a parry: no damage, and the attacker is thrown open. */
 export const PARRY_WINDOW = 0.09;
 const PARRY_STUN = 0.5;
+/** After a guard drops, how long before a fresh one can parry again. */
+const PARRY_RECOVER = 0.45;
 /** Within this of the wall a blow shoves the attacker back instead, and a heavy one splats the victim. */
 const CORNER = 1.1;
 const SPLAT_DAMAGE = 3;
@@ -133,7 +135,7 @@ export function landHit(def: Fighter, o: HitOptions): boolean {
   const juggling = !def.grounded && def.launched;
   /* A fresh guard against a fighter's own blow (never a summon, projectile or
      cinematic) turns it back on them. Held guard is just a block. */
-  const parried = blocked && def.stateTime < PARRY_WINDOW && !!o.attacker && !!o.attacker.move && !o.attacker.move.special
+  const parried = blocked && def.stateTime < PARRY_WINDOW && state.elapsed - def.guardDropAt > PARRY_RECOVER && !!o.attacker && !!o.attacker.move && !o.attacker.move.special
     && o.attacker.state !== S.KO;
   const dmg = parried ? 0 : blocked ? o.damage * 0.22 : o.damage * (o.mult ?? 1) * (juggling ? JUGGLE.damage : 1);
 
