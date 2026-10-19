@@ -1,6 +1,6 @@
 import { METER, S } from '../config/constants';
 import type { Fighter } from './fighter';
-import { attackPhase } from './fsm';
+import { attackPhase, attackRate } from './fsm';
 import { blankIntent, type Intent } from './intent';
 import { match } from './match';
 import { state } from './state';
@@ -101,7 +101,7 @@ function pushInput(sym: string): void {
 function resultText(att: Fighter, vic: Fighter): string {
   const m = att.move;
   if (!m) return '';
-  const atkLeft = Math.max(0, m.total - att.stateTime);
+  const atkLeft = Math.max(0, m.total - att.stateTime) / attackRate(att, m);
   if (vic.state === S.BLOCK) return `BLOCKED · attacker recovers ${Math.round(atkLeft * FPS)}f`;
   const stun = Math.max(0, vic.stunTime - vic.stateTime);
   const adv = Math.round((stun - atkLeft) * FPS);
@@ -134,9 +134,10 @@ export function stepTraining(P1: Fighter, P2: Fighter, i1: Intent): void {
     if (!armed || P1.stateTime < 1 / 120 + 1e-6) {
       const m = P1.move;
       const heavy = m.name === 'KICK';
+      const rate = attackRate(P1, m);
       last = {
         name: heavy ? P1.def.heavy : m.name,
-        startup: Math.round(m.startup * FPS), active: Math.round(m.active * FPS), recovery: Math.round(m.recovery * FPS),
+        startup: Math.round((m.startup / rate) * FPS), active: Math.round((m.active / rate) * FPS), recovery: Math.round((m.recovery / rate) * FPS),
         damage: Math.round(m.damage * P1.def.power * (heavy ? P1.def.heavyMul : 1)),
         result: 'WHIFF',
       };

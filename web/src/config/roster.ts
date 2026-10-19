@@ -61,7 +61,7 @@ export const ROSTER: readonly FighterDef[] = [
     rough: 0.55, metal: 0.55, scale: 1.00, bulk: 1.00,
     pad: 0.34, helm: 0.62, blade: false,
     speed: 6.2, jump: 9.4, power: 1.00, reach: 1.00,
-    armed: true, style: 'STRAIGHT SWORD', heavy: 'SLASH', heavyMul: 1.20, heavyReach: 2.05,
+    armed: true, style: 'STRAIGHT SWORD', heavy: 'SLASH', heavyMul: 1.05, heavyReach: 2.05,
   },
   {
     id: 'palevigil', name: 'PALE VIGIL', title: 'Spectral Sentinel',
@@ -69,8 +69,8 @@ export const ROSTER: readonly FighterDef[] = [
     plate: 0x5E9FBE, cloth: 0x2C5570, cape: 0x1B5670, flesh: 0xC9A88E, hair: 0xE8E4DC,
     rough: 0.35, metal: 0.72, scale: 1.08, bulk: 0.86,
     pad: 0.27, helm: 0.86, blade: true,
-    speed: 6.9, jump: 10.2, power: 0.86, reach: 1.16,
-    armed: true, style: 'CURVED SABRE', heavy: 'SLASH', heavyMul: 1.10, heavyReach: 2.35,
+    speed: 6.9, jump: 10.2, power: 0.80, reach: 1.16,
+    armed: true, style: 'CURVED SABRE', heavy: 'SLASH', heavyMul: 0.95, heavyReach: 2.35,
   },
   {
     id: 'bronzemaw', name: 'BRONZEMAW', title: 'Verdigris Brute',
@@ -78,7 +78,7 @@ export const ROSTER: readonly FighterDef[] = [
     plate: 0x74A033, cloth: 0x2F4020, cape: 0x4E8228, flesh: 0xC08A62, hair: 0x241A10,
     rough: 0.80, metal: 0.35, scale: 0.96, bulk: 1.34,
     pad: 0.44, helm: 0.34, blade: false,
-    speed: 5.2, jump: 8.2, power: 1.38, reach: 0.94,
+    speed: 5.9, jump: 8.2, power: 1.38, reach: 0.94,
     armed: false, style: 'IRON PALM', heavy: 'KICK', heavyMul: 1.00, heavyReach: 0,
   },
   {
@@ -87,7 +87,7 @@ export const ROSTER: readonly FighterDef[] = [
     plate: 0x7E4CB8, cloth: 0x2A1E3E, cape: 0x8235C4, flesh: 0xCE9C86, hair: 0x2A1638,
     rough: 0.45, metal: 0.50, scale: 0.95, bulk: 0.76,
     pad: 0.24, helm: 0.74, blade: true,
-    speed: 8.0, jump: 11.2, power: 0.72, reach: 1.02,
+    speed: 8.0, jump: 11.2, power: 0.90, reach: 1.02,
     armed: false, style: 'DRUNKEN FIST', heavy: 'KICK', heavyMul: 1.00, heavyReach: 0,
   },
 ];

@@ -81,7 +81,8 @@ export function stepHold(dt: number): boolean {
     introShot = shot;
     if (shot > 0) {
       const f = shot === 1 ? P1 : P2;
-      setCinematic({ x: f.x, y: 2.35, dist: 5.0, yaw: f.face * 0.55, h: -0.35 });
+      // head to toe: at 5 units the chibi cast showed a torso and no face
+      setCinematic({ x: f.x, y: 2.3, dist: 8.4, yaw: f.face * 0.55, h: -0.2 });
       introCard(f, shot === 1 ? 0 : 1);
       f.introT = INTRO_SHOT;                    // their entrance plays while the camera is on them
     }

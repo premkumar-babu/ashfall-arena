@@ -229,12 +229,12 @@ export class SfxEngine {
     this.hiss(0.22 * p, 0.26, 130, 0.7, o);
   }
 
-  /** A clean hit: a transient click for the snap, a body thump, and a crack of noise. */
-  hit(p: number, x?: number): void {
+  /** A clean hit: a transient click for the snap, a body thump, and a crack of noise. `pitch` follows the striker's build: a brute lands low, a light fighter snaps. */
+  hit(p: number, x?: number, pitch = 1): void {
     const o = { pan: this.pan(x), send: 0.14, jitter: 0.08 };
-    this.tone('square', 2400, 380, 0.09 * p, 0.001, 0.025, o);
-    this.tone('sine', 160, 42, 0.52 * p, 0.004, 0.17, o);
-    this.hiss(0.34 * p, 0.10, 950, 0.9, o);
+    this.tone('square', 2400 * pitch, 380 * pitch, 0.09 * p, 0.001, 0.025, o);
+    this.tone('sine', 160 * pitch, 42 * pitch, 0.52 * p, 0.004, 0.17 / Math.sqrt(pitch), o);
+    this.hiss(0.34 * p, 0.10, 950 * pitch, 0.9, o);
   }
 
   /** A guard: a metallic ring with an inharmonic partial, and a hiss of scraped steel. */

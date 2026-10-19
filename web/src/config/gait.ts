@@ -12,6 +12,10 @@
                 thud and is slow to get moving again. Low and wide.
     NOCTURNE    a weave. Instant starts, a quick fast cadence with a rolling
                 drunken sway, a snappy hop and a very short dash.
+
+  Attack speed is part of it too: Nocturne's blows come out a quarter faster,
+  Pale Vigil's sabre takes longer to wind up as the price of its reach, and
+  Bronzemaw is a touch slow on everything.
 */
 
 export interface Gait {
@@ -59,6 +63,9 @@ export interface Gait {
   leanGain: number;
   /** Extra tilt when a jump leaves the ground, in radians. */
   jumpTuck: number;
+  /** How fast this fighter's light and heavy play out, as a multiplier on the shared frame data. */
+  lightSpeed: number;
+  heavySpeed: number;
   /** How many further normals a landed hit can be cancelled into, in a row. The last one of the string ends it with a launch. */
   chainMax: number;
 }
@@ -69,7 +76,7 @@ const BASE: Gait = {
   dashSpeed: 15.5, dashTime: 0.17, dashCd: 0.42,
   landLag: 0.05, landSlow: 0.5, landThump: 0,
   cadence: 10.5, stride: 0.85, bob: 0.10, sway: 0.028, idleSway: 0.18,
-  idleRate: 2.1, idleDepth: 0.05, stance: 0, splay: 0, runLean: 0.07, leanGain: 1, jumpTuck: 0, chainMax: 2,
+  idleRate: 2.1, idleDepth: 0.05, stance: 0, splay: 0, runLean: 0.07, leanGain: 1, jumpTuck: 0, chainMax: 2, lightSpeed: 1, heavySpeed: 1,
 };
 
 const GAITS: Record<string, Gait> = {
@@ -82,17 +89,17 @@ const GAITS: Record<string, Gait> = {
     dashSpeed: 17.5, dashTime: 0.21, dashCd: 0.5,
     landLag: 0.03, landSlow: 0.7, landThump: 0,
     cadence: 8.2, stride: 0.7, bob: 0.05, sway: 0.012, idleSway: 0.08,
-    idleRate: 1.5, idleDepth: 0.035, stance: -0.04, splay: -0.03, runLean: 0.12, leanGain: 1.3, jumpTuck: 0.05, chainMax: 3,
+    idleRate: 1.5, idleDepth: 0.035, stance: -0.04, splay: -0.03, runLean: 0.12, leanGain: 1.3, jumpTuck: 0.05, chainMax: 3, lightSpeed: 1, heavySpeed: 0.8,
   },
 
   bronzemaw: {
     ...BASE,
     accelTime: 0.15, stopTime: 0.035, turnTime: 0.11,
     gravity: 1.12, jump: 1.08, apexHang: 0.9, airControl: 0.12,
-    dashSpeed: 12.5, dashTime: 0.13, dashCd: 0.55,
+    dashSpeed: 15, dashTime: 0.15, dashCd: 0.42,
     landLag: 0.16, landSlow: 0.2, landThump: 0.1,
     cadence: 7.0, stride: 1.0, bob: 0.2, sway: 0.05, idleSway: 0.26,
-    idleRate: 1.6, idleDepth: 0.085, stance: 0.14, splay: 0.12, runLean: 0.1, leanGain: 0.7, jumpTuck: -0.04, chainMax: 1,
+    idleRate: 1.6, idleDepth: 0.085, stance: 0.14, splay: 0.12, runLean: 0.1, leanGain: 0.7, jumpTuck: -0.04, chainMax: 1, lightSpeed: 0.95, heavySpeed: 0.9,
   },
 
   nocturne: {
@@ -102,7 +109,7 @@ const GAITS: Record<string, Gait> = {
     dashSpeed: 19.5, dashTime: 0.14, dashCd: 0.3,
     landLag: 0.02, landSlow: 0.8, landThump: 0,
     cadence: 13.5, stride: 0.95, bob: 0.13, sway: 0.075, idleSway: 0.42,
-    idleRate: 3.1, idleDepth: 0.06, stance: 0.08, splay: 0.06, runLean: 0.15, leanGain: 1.6, jumpTuck: 0.1, chainMax: 4,
+    idleRate: 3.1, idleDepth: 0.06, stance: 0.08, splay: 0.06, runLean: 0.15, leanGain: 1.6, jumpTuck: 0.1, chainMax: 4, lightSpeed: 1.28, heavySpeed: 1.18,
   },
 };
 

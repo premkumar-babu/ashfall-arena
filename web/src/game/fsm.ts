@@ -153,8 +153,14 @@ function tryCancel(f: Fighter, intent: Intent): boolean {
   return false;
 }
 
+/** How fast this fighter's swing plays against the shared frame data. Specials, throws and cinematics keep their own clock. */
+export function attackRate(f: Fighter, move: Move | null): number {
+  if (!move || move.special) return 1;
+  return move === MOVES.KICK || move === MOVES.SWEEP ? f.gait.heavySpeed : f.gait.lightSpeed;
+}
+
 export function stepState(f: Fighter, intent: Intent, dt: number): void {
-  f.stateTime += dt;
+  f.stateTime += (f.state === S.PUNCH || f.state === S.KICK) ? dt * attackRate(f, f.move) : dt;
   if (f.dashCd > 0) f.dashCd -= dt;
   if (f.dashTime > 0) f.dashTime -= dt;
 

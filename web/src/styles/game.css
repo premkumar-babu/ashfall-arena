@@ -2196,3 +2196,18 @@ body.intro #hud .status{opacity:0;}
 #training .tr-data b { color: #ffb454; }
 body:not(.training) #training { display: none; }
 body.training #hud .gauges { opacity: .6; }
+
+/* ── playtest notes (results screen) ─────────────────────────────────── */
+#feedback { position: fixed; inset: 0; z-index: 90; display: none; place-items: center; background: rgba(6, 4, 10, .72); }
+#feedback.on { display: grid; }
+#feedback .fb-box { width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow: auto; padding: 22px 24px;
+  background: var(--panel, #120C18); border: 1px solid var(--line, #2E2438); color: var(--text, #EDE6DC); font: 500 14px/1.5 system-ui, sans-serif; }
+#feedback h3 { margin: 0 0 4px; letter-spacing: .16em; color: var(--acc, #FFAA44); }
+#feedback .fb-sub, #feedback .fb-msg { margin: 0 0 12px; opacity: .7; font-size: 12px; }
+#feedback label, #feedback .fb-row { display: block; margin: 10px 0; }
+#feedback select, #feedback textarea { display: block; width: 100%; margin-top: 4px; padding: 6px 8px; background: #0B0809; color: inherit;
+  border: 1px solid var(--line, #2E2438); font: inherit; }
+#feedback .fb-scale { display: flex; gap: 6px; margin-top: 4px; }
+#feedback .fb-scale button { flex: 1; padding: 6px 0; background: #0B0809; color: inherit; border: 1px solid var(--line, #2E2438); cursor: pointer; }
+#feedback .fb-scale button.on { background: var(--acc, #FFAA44); color: #0B0809; border-color: transparent; }
+#feedback .fb-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }

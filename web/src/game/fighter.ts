@@ -544,7 +544,7 @@ export function createFighter(def: FighterDef, slot: number): Fighter {
   const foot = makeVolume(legF.foot, 0.98 * rc, 0.62 * rc, 0.86 * rc, PAL.strike);
   // the blade sweeps a long, thin volume; unarmed fighters never use it
   const blade = def.armed && bladeZone
-    ? makeVolume(bladeZone, def.heavyReach * 0.55 * sc, 0.85 * sc, 0.7 * sc, PAL.gold)
+    ? makeVolume(bladeZone, def.heavyReach * 0.42 * sc, 0.85 * sc, 0.7 * sc, PAL.gold)
     : foot;
 
   const aura = makeAura(def.accent);

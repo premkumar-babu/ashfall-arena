@@ -261,7 +261,7 @@ export function landHit(def: Fighter, o: HitOptions): boolean {
     if (heavy) physics?.spawnDebris(_feet.set(def.x, 0.15, PLANE_Z), o.dir, 5, 0.8);
     // a blade bites; a fist or foot thuds
     if (o.attacker?.def.armed && (o.attacker.move === MOVES.KICK || o.attacker.move === MOVES.SWEEP)) Sfx.slash(clamp(o.damage / 10, 0.5, 1.3), _center.x);
-    Sfx.hit(clamp(o.damage / 10, 0.4, 1.3) * (o.attacker?.def.armed ? 0.7 : 1), _center.x);
+    Sfx.hit(clamp(o.damage / 10, 0.4, 1.3) * (o.attacker?.def.armed ? 0.7 : 1), _center.x, o.attacker ? 1 / Math.pow(o.attacker.def.bulk, 0.6) : 1);
     hitFeedback(o.owner?.slot ?? null, def.slot, heavy ? 'heavy' : 'light');
     if (heavy) Sfx.bass(clamp(o.damage / 14, 0.5, 1.2), _center.x);
     match.lastTrade = `${o.label} → ${o.part ?? 'HIT'}`;

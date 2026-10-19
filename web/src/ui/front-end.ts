@@ -10,6 +10,7 @@ import type { Viewport } from '../core/resize';
 import type { PerfMonitor } from '../core/stats';
 import { isDifficulty, setDifficulty } from '../game/bot';
 import { cycleDummy } from '../game/training';
+import { openFeedback } from './feedback';
 import { hideResults, match, returnToSelect, skipIntro, startMatch } from '../game/match';
 import { state, type Difficulty } from '../game/state';
 import { debugBoxesOn, setDebugBoxes } from '../game/volumes';
@@ -574,7 +575,14 @@ window.addEventListener('pointerdown', () => {
   if (state.phase === PHASE.FIGHT) skipIntro();
 });
 
+/** A key typed into a form field (the playtest notes) belongs to the field, not to the game or the menus. */
+function typing(ev: KeyboardEvent): boolean {
+  const t = ev.target as HTMLElement | null;
+  return !!t && (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT' || t.tagName === 'SELECT') && !!t.closest('#feedback');
+}
+
 function onGameKey(ev: KeyboardEvent): void {
+  if (typing(ev)) return;
   if (SWALLOW.has(ev.code)) ev.preventDefault();
   Sfx.init();
   if (state.phase === PHASE.FIGHT && !ev.repeat && ev.code !== 'Escape') skipIntro();
@@ -636,6 +644,7 @@ function swallow(ev: KeyboardEvent): void {
    listener answer before the match input does. Only navigation keys are
    taken; shortcuts like T and M still reach the game handler. */
 function onOverlayKey(ev: KeyboardEvent): void {
+  if (typing(ev) || document.getElementById('feedback')?.classList.contains('on')) return;
   if (padListening && (ev.code === 'Escape' || ev.code === 'Backspace')) {
     swallow(ev);
     stopListening();
@@ -880,6 +889,7 @@ export function wireFrontEnd({ disposer, viewport, perf }: FrontEndContext): voi
   click('ragain', () => { Sfx.ui(); hideResults(); startMatch(); });
   click('rselect', leaveResultsToSelect);
   click('rmenu', () => { Sfx.ui(); hideResults(); toMainMenu(); });
+  click('rfeedback', () => { Sfx.ui(); openFeedback(state.P1, state.P2); });
 
   // pause card — the modal sits above it, so the match stays paused underneath
   click('hpause', () => setPaused(true));

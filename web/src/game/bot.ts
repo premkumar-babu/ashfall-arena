@@ -1,6 +1,6 @@
 import { A, BOT_STATE, METER, MIN_GAP, S } from '../config/constants';
 import type { Fighter } from './fighter';
-import { attackPhase } from './fsm';
+import { attackPhase, attackRate } from './fsm';
 import { blankIntent, type Intent } from './intent';
 import { specialReady } from './specials';
 import { fatalReady } from './fatalblow';
@@ -76,7 +76,7 @@ const PERSONALITY: Readonly<Record<string, Personality>> = {
   // the brute: walks you down, grabs a guard, leans on the heavy
   bronzemaw: { range: 1.95, hop: 0.45, dash: 1.4, special: 0.8, throw: 3, heavy: 0.5, strings: -1 },
   // the cutthroat: in and out, off the ground, long light strings
-  nocturne: { range: 2.0, hop: 1.8, dash: 2.4, special: 1, throw: 1, heavy: 0.25, strings: 1 },
+  nocturne: { range: 1.9, hop: 1.2, dash: 2.6, special: 1, throw: 1.5, heavy: 0.25, strings: 1 },
 };
 const NEUTRAL: Personality = { range: BOT.range, hop: 1, dash: 1, special: 1, throw: 1, heavy: 0.34, strings: 0 };
 
@@ -119,7 +119,7 @@ export function botIntent(f: Fighter, foe: Fighter, dt: number): Intent {
   if (foeSwinging && foe.state !== b.lastFoeState && dist < range + 1.3) {
     if (Math.random() < BOT.blockChance) {
       // a parry is a guard raised just before the blow connects; most reactions are early and plain
-      const lead = foe.move ? foe.move.startup - foe.stateTime : 0.1;
+      const lead = foe.move ? (foe.move.startup - foe.stateTime) / attackRate(foe, foe.move) : 0.1;
       b.blockDelay = Math.random() < BOT.parry ? Math.max(0, lead - 0.045) : 0;
       b.blockFor = 0.40 + b.blockDelay;
       b.queue.length = 0;
