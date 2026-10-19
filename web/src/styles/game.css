@@ -2180,3 +2180,19 @@ body #hud .combo .clab{font-family:var(--mk);font-weight:900;font-size:clamp(11p
 /* the fight HUD waits for the round call */
 body.intro #hud .status{opacity:0;}
 @media (prefers-reduced-motion: reduce){ #introcard.on{animation:none;opacity:1;} }
+
+/* ── TRAINING: input display and frame data ─────────────────────────── */
+#training { position: fixed; left: 16px; bottom: 96px; z-index: 40; width: 250px; display: none; pointer-events: none;
+  font: 600 12px/1.45 ui-monospace, 'SFMono-Regular', Menlo, monospace; color: #ede3d2; letter-spacing: .04em;
+  background: rgba(11, 8, 9, .72); border: 1px solid rgba(226, 97, 43, .55); padding: 10px 12px; }
+#training.on { display: block; }
+#training .tr-head { color: #ffb454; font-weight: 800; letter-spacing: .14em; margin-bottom: 6px; }
+#training .tr-head span { color: #5bc8d8; margin-left: 6px; }
+#training .tr-head em { float: right; font-style: normal; opacity: .55; font-weight: 600; }
+#training .tr-inputs div { display: flex; justify-content: space-between; gap: 8px; }
+#training .tr-inputs b { font-size: 14px; color: #fff; }
+#training .tr-inputs i { font-style: normal; opacity: .6; }
+#training .tr-data { margin-top: 8px; padding-top: 6px; border-top: 1px solid rgba(237, 227, 210, .2); }
+#training .tr-data b { color: #ffb454; }
+body:not(.training) #training { display: none; }
+body.training #hud .gauges { opacity: .6; }

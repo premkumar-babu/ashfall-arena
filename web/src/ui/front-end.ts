@@ -9,6 +9,7 @@ import { queryFlag } from '../core/platform';
 import type { Viewport } from '../core/resize';
 import type { PerfMonitor } from '../core/stats';
 import { isDifficulty, setDifficulty } from '../game/bot';
+import { cycleDummy } from '../game/training';
 import { hideResults, match, returnToSelect, skipIntro, startMatch } from '../game/match';
 import { state, type Difficulty } from '../game/state';
 import { debugBoxesOn, setDebugBoxes } from '../game/volumes';
@@ -105,13 +106,33 @@ function syncBotLabel(): void {
    plays it, so it gets its own switch rather than a third player button. */
 function setRush(on: boolean): void {
   state.rush = on;
-  maybeById('mrush')?.classList.toggle('on', on);
-  maybeById('mduel')?.classList.toggle('on', !on);
+  if (on) state.training = false;
+  syncModeButtons();
   document.body.classList.toggle('rush', on);
   updateSelectUI();                                // the cards describe movement in RUSH, titles in DUEL
 }
 
+function syncModeButtons(): void {
+  maybeById('mrush')?.classList.toggle('on', state.rush);
+  maybeById('mtrain')?.classList.toggle('on', state.training);
+  maybeById('mduel')?.classList.toggle('on', !state.rush && !state.training);
+  document.body.classList.toggle('training', state.training);
+}
+
+/* TRAINING needs a dummy to hit, so it is a one-player mode: the CPU slot is the dummy. */
+function setTraining(on: boolean): void {
+  state.training = on;
+  if (on) {
+    state.rush = false;
+    document.body.classList.remove('rush');
+    setMode(true);
+  }
+  syncModeButtons();
+  updateSelectUI();
+}
+
 function setMode(one: boolean): void {
+  if (!one && state.training) setTraining(false);
   state.mode1P = one;
   maybeById('m1p')?.classList.toggle('on', one);
   maybeById('m2p')?.classList.toggle('on', !one);
@@ -499,6 +520,7 @@ function onGameKey(ev: KeyboardEvent): void {
       case 'KeyP': setPost(!post?.enabled); break;
       case 'KeyC': announce('CAMERA · ' + cycleCamView(), 900, 'toast'); break;
       case 'KeyN': Music.toggle(); break;
+      case 'KeyV': if (state.training && state.phase === PHASE.FIGHT) announce('DUMMY · ' + cycleDummy(), 900, 'toast'); break;
       case 'KeyH':
         // developer overlays (frame data, CPU/GPU timings) are opt-in by URL, never a stray keypress
         if (DEV_TOOLS) {
@@ -756,7 +778,8 @@ export function wireFrontEnd({ disposer, viewport, perf }: FrontEndContext): voi
   // select screen
   click('m1p', () => { Sfx.ui(); setMode(true); });
   click('m2p', () => { Sfx.ui(); setMode(false); });
-  click('mduel', () => { Sfx.ui(); setRush(false); });
+  click('mduel', () => { Sfx.ui(); setTraining(false); setRush(false); });
+  click('mtrain', () => { Sfx.ui(); setTraining(true); });
   click('mrush', () => { Sfx.ui(); setRush(true); });
   document.querySelectorAll<HTMLButtonElement>('#diffswitch button').forEach((b) => {
     disposer.listen(b, 'click', () => {

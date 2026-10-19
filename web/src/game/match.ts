@@ -15,6 +15,7 @@ import type { Fighter } from './fighter';
 import { enterState } from './fsm';
 import { resetBodyLanguage } from './pose';
 import { emberHolder, resetRush } from './rush';
+import { hideTraining, resetTraining } from './training';
 import { resetFinish } from './finish';
 import { resetSpecials } from './specials';
 import { resetFatalBlows } from './fatalblow';
@@ -148,6 +149,7 @@ export function startMatch(): void {
   }
   match.round = 1;
   match.draws = 0;
+  if (state.training) resetTraining(); else hideTraining();
   resetFatalBlows(true);                // one fatal blow each, per match
   match.paused = false;
   resetFeel();
@@ -168,6 +170,7 @@ export function startMatch(): void {
 
 export function returnToSelect(): void {
   hideResults();
+  hideTraining();
   hideVersus();
   hush();
   match.hold = 0;

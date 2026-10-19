@@ -34,6 +34,8 @@ class GameState {
   mode1P = true;
   /** RUSH: the movement-only mode, where the only weapon is your own momentum (game/rush.ts). */
   rush = false;
+  /** TRAINING: a dummy, endless health and meter, input display and frame data (game/training.ts). */
+  training = false;
   difficulty: Difficulty = 'NORMAL';
   postOn = false;
 

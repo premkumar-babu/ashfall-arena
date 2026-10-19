@@ -26,6 +26,7 @@ import { resolveBodyCheck, rushBotIntent, stepEmber, stepRush, stripAttacks } fr
 import { stepSpecials } from './specials';
 import { inFatalBlow, stepFatalBlow } from './fatalblow';
 import { stepThrows } from './throws';
+import { dummyIntent, stepTraining, training } from './training';
 import { stepMeter } from './meter';
 import { planMotion, resolveMotion } from './movement';
 import { poseFighter, stageSelectPreview } from './pose';
@@ -92,7 +93,7 @@ export function simulate(dt: number): void {
   // RUSH is not played against a clock: the round ends when someone burns out.
   // FINISH THEM stops it too — the loser is already beaten.
   const fin = finishing();
-  if (!match.over && !state.rush && !fin && !inFatalBlow()) {
+  if (!match.over && !state.rush && !state.training && !fin && !inFatalBlow()) {
     match.time = Math.max(0, match.time - dt);
     if (match.time === 0) {
       const lead = P1.hp === P2.hp ? null : P1.hp > P2.hp ? P1 : P2;
@@ -101,7 +102,9 @@ export function simulate(dt: number): void {
   }
 
   let i1 = controllers[0].intent();
-  let i2 = versus ? controllers[1].intent() : state.rush ? rushBotIntent(P2, P1, dt) : botIntent(P2, P1, dt);
+  let i2 = versus ? controllers[1].intent()
+    : state.rush ? rushBotIntent(P2, P1, dt)
+      : state.training && training.dummy !== 'CPU' ? dummyIntent() : botIntent(P2, P1, dt);
   if (fin) {
     // the loser is out on their feet; a CPU winner has its own idea of what comes next
     if (finishVictim() === P1) i1 = blankIntent();
@@ -177,6 +180,7 @@ export function simulate(dt: number): void {
   resolveCombat(P2, P1);
   resolveAssist(P1.assist, P2);
   resolveAssist(P2.assist, P1);
+  if (state.training) stepTraining(P1, P2, i1);
   settleKO();
 }
 
