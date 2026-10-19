@@ -29,7 +29,7 @@ import { applyIdentity, cancelMatchTimers, match, renderStocks } from './game/ma
 import { buildRigs, resetRigs } from './game/rigs';
 import { state } from './game/state';
 import { resetVolumes } from './game/volumes';
-import { loadKeys } from './input/bindings';
+import { loadKeys, loadPad } from './input/bindings';
 import { attachFighterBodies, disposePhysics, setPhysics } from './physics/port';
 import { disposeSharedMaterials } from './render/materials';
 import { createPost, disposePost } from './render/post';
@@ -147,6 +147,7 @@ async function boot(): Promise<() => void> {
 
     // front end
     loadKeys();
+    loadPad();
     Boot.start();                                  // before the first model request goes out
     disposer.track(Boot);
     restoreCast();

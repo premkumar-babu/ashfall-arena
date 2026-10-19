@@ -15,7 +15,7 @@ import { state, type Difficulty } from '../game/state';
 import { debugBoxesOn, setDebugBoxes } from '../game/volumes';
 import { startAmbience } from '../fx/juice';
 import {
-  assignKey, BINDINGS, clearKey, KEY_ACTIONS, keyLabel, resetKeys, SWALLOW, type ActionId, type Side,
+  assignKey, assignPad, BINDINGS, clearKey, KEY_ACTIONS, keyLabel, PAD_ACTIONS, PAD_BINDINGS, PAD_REMAPPABLE, padLabel, resetKeys, resetPad, SWALLOW, type PadAction, type ActionId, type Side,
 } from '../input/bindings';
 import { gamepads, input, keyboard, mouse, resetInput, type MenuAction } from '../input/controller';
 import { TouchControls } from '../input/devices/touch-controls';
@@ -341,12 +341,78 @@ function stepTab(step: 1 | -1): boolean {
 
 let keyListening: { side: Side; action: ActionId; btn: HTMLButtonElement } | null = null;
 
+/* A pad button is learned by polling: the Gamepad API has no button events, so
+   while a row is listening the first newly pressed, remappable button wins. */
+let padListening: { action: PadAction; btn: HTMLButtonElement; timer: number; seen: Set<number> } | null = null;
+
 function stopListening(): void {
   keyListening?.btn.classList.remove('listening');
   keyListening = null;
+  if (padListening) {
+    window.clearInterval(padListening.timer);
+    padListening.btn.classList.remove('listening');
+    padListening = null;
+  }
+}
+
+function pressedPadButtons(): Set<number> {
+  const out = new Set<number>();
+  for (const gp of navigator.getGamepads?.() ?? []) {
+    if (!gp) continue;
+    for (const i of PAD_REMAPPABLE) {
+      const b = gp.buttons[i];
+      if (b && (b.pressed || b.value > 0.5)) out.add(i);
+    }
+  }
+  return out;
+}
+
+function buildPadUI(): void {
+  const body = maybeById('pbody');
+  if (!body) return;
+  body.replaceChildren();
+  for (const a of PAD_ACTIONS) {
+    const tr = document.createElement('tr');
+    const name = document.createElement('td');
+    name.textContent = a.name;
+    tr.appendChild(name);
+    const td = document.createElement('td');
+    td.colSpan = 2;
+    const b = document.createElement('button');
+    b.className = 'kbtn';
+    b.type = 'button';
+    b.textContent = padLabel(PAD_BINDINGS[a.id]);
+    b.addEventListener('click', () => {
+      const was = padListening?.btn === b;
+      stopListening();
+      if (was) { buildPadUI(); return; }
+      b.classList.add('listening');
+      b.textContent = 'press a button';
+      // anything already held when the row opens does not count
+      const seen = pressedPadButtons();
+      const timer = window.setInterval(() => {
+        const now = pressedPadButtons();
+        for (const i of now) {
+          if (seen.has(i)) continue;
+          stopListening();
+          assignPad(a.id, i);
+          Sfx.ui();
+          buildPadUI();
+          return;
+        }
+        for (const i of [...seen]) if (!now.has(i)) seen.delete(i);
+      }, 40);
+      padListening = { action: a.id, btn: b, timer, seen };
+      Sfx.ui();
+    });
+    td.appendChild(b);
+    tr.appendChild(td);
+    body.appendChild(tr);
+  }
 }
 
 function buildKeyUI(): void {
+  buildPadUI();
   const body = maybeById('kbody');
   if (!body) return;
   body.replaceChildren();
@@ -570,6 +636,12 @@ function swallow(ev: KeyboardEvent): void {
    listener answer before the match input does. Only navigation keys are
    taken; shortcuts like T and M still reach the game handler. */
 function onOverlayKey(ev: KeyboardEvent): void {
+  if (padListening && (ev.code === 'Escape' || ev.code === 'Backspace')) {
+    swallow(ev);
+    stopListening();
+    buildPadUI();
+    return;
+  }
   if (keyListening) {
     swallow(ev);
     const k = keyListening;
@@ -669,7 +741,7 @@ function padNav(action: MenuAction): boolean {
 }
 
 export function padMenuAction(slot: 0 | 1, action: MenuAction): void {
-  if (keyListening) return;
+  if (keyListening || padListening) return;
   if (modalOpen()) {
     if (action === 'back' || action === 'start') closeModal();
     else if (action === 'confirm') activateFocused();
@@ -741,7 +813,7 @@ export function wireFrontEnd({ disposer, viewport, perf }: FrontEndContext): voi
   disposer.defer(() => {
     viewportRef = null;
     perfRef = null;
-    keyListening = null;
+    stopListening();
     modalOpener = null;
     audioStarted = false;
   });
@@ -797,7 +869,7 @@ export function wireFrontEnd({ disposer, viewport, perf }: FrontEndContext): voi
   click('mhelp', () => openModal('help', 'title'));
   click('openKeys', () => openModal('keys', settings.modalBack));
   click('openCtrl', () => openModal('controls', settings.modalBack));
-  click('kreset', () => { resetKeys(); buildKeyUI(); Sfx.ui(); });
+  click('kreset', () => { resetKeys(); resetPad(); buildKeyUI(); Sfx.ui(); });
   click('mquit', showBye);
   click('byeback', () => { Sfx.ui(); showMenu(); });
   click('mclose', closeModal);

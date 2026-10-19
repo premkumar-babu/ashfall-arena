@@ -1,4 +1,5 @@
 import { INPUT } from '../../config/controls';
+import { PAD_BINDINGS } from '../bindings';
 
 /*
   Gamepads, standard mapping.
@@ -103,11 +104,11 @@ export class PadState {
   }
 
   get jumpHeld(): boolean {
-    return this.isHeld(PAD.A) || this.isHeld(PAD.UP) || this.stickUp;
+    return this.isHeld(PAD_BINDINGS.jump) || this.isHeld(PAD.UP) || this.stickUp;
   }
 
   get jumpPressed(): boolean {
-    return this.pressed(PAD.A) || this.pressed(PAD.UP) || this.stickUpEdge;
+    return this.pressed(PAD_BINDINGS.jump) || this.pressed(PAD.UP) || this.stickUpEdge;
   }
 
   get block(): boolean {

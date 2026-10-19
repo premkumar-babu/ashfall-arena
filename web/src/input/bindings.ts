@@ -146,3 +146,56 @@ export function resetKeys(): void {
   syncGlyphs();
   save();
 }
+
+/* ── gamepad buttons ──────────────────────────────────────────────────────
+   One table for every pad: the face buttons answer the same way on both
+   players' controllers. Direction, block and menus stay on the d-pad, stick
+   and triggers, so a remap can never leave a pad without movement. */
+
+export type PadAction = 'jump' | 'dash' | 'punch' | 'kick' | 'assist' | 'power';
+
+export const PAD_ACTIONS: ReadonlyArray<{ readonly id: PadAction; readonly name: string }> = [
+  { id: 'jump', name: 'Jump' },
+  { id: 'dash', name: 'Dash' },
+  { id: 'punch', name: 'Light attack' },
+  { id: 'kick', name: 'Heavy attack' },
+  { id: 'assist', name: 'Assist' },
+  { id: 'power', name: 'Overdrive' },
+];
+
+const PAD_DEFAULTS: Readonly<Record<PadAction, number>> = { jump: 0, assist: 1, punch: 2, kick: 3, dash: 4, power: 5 };
+const PAD_STORE = 'ashfall.pad';
+/** Face, shoulder, trigger and stick-click buttons. D-pad and START are left alone. */
+export const PAD_REMAPPABLE: readonly number[] = [0, 1, 2, 3, 4, 5, 6, 7, 10, 11];
+const PAD_NAMES: Readonly<Record<number, string>> = {
+  0: 'A', 1: 'B', 2: 'X', 3: 'Y', 4: 'LB', 5: 'RB', 6: 'LT', 7: 'RT', 8: 'Back', 9: 'Start', 10: 'L-Stick', 11: 'R-Stick',
+};
+
+export const PAD_BINDINGS: Record<PadAction, number> = { ...PAD_DEFAULTS };
+
+export function padLabel(button: number | undefined): string {
+  return button === undefined ? '—' : (PAD_NAMES[button] ?? `Btn ${button}`);
+}
+
+export function loadPad(): void {
+  const map = storageGetJSON<Partial<Record<PadAction, number>>>(PAD_STORE);
+  if (!map) return;
+  for (const a of PAD_ACTIONS) {
+    const v = map[a.id];
+    if (typeof v === 'number' && PAD_REMAPPABLE.includes(v)) PAD_BINDINGS[a.id] = v;
+  }
+}
+
+/* The same rule as keys: a button already in use is swapped, never doubled. */
+export function assignPad(action: PadAction, button: number): void {
+  if (!PAD_REMAPPABLE.includes(button)) return;
+  const prev = PAD_BINDINGS[action];
+  for (const a of PAD_ACTIONS) if (a.id !== action && PAD_BINDINGS[a.id] === button) PAD_BINDINGS[a.id] = prev;
+  PAD_BINDINGS[action] = button;
+  storageSetJSON(PAD_STORE, PAD_BINDINGS);
+}
+
+export function resetPad(): void {
+  Object.assign(PAD_BINDINGS, PAD_DEFAULTS);
+  storageSetJSON(PAD_STORE, PAD_BINDINGS);
+}

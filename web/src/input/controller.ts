@@ -1,9 +1,9 @@
 import { INPUT } from '../config/controls';
 import type { Fighter } from '../game/fighter';
 import { ACT, blankIntent, type Intent } from '../game/intent';
-import { BINDINGS, type PlayerBindings } from './bindings';
+import { BINDINGS, PAD_BINDINGS, type PlayerBindings } from './bindings';
 import { InputBuffer } from './buffer';
-import { GamepadDevice, PAD } from './devices/gamepad-device';
+import { GamepadDevice } from './devices/gamepad-device';
 import { KeyboardDevice } from './devices/keyboard-device';
 import { MOUSE, MouseDevice } from './devices/mouse-device';
 import type { TouchAct, TouchControls } from './devices/touch-controls';
@@ -82,17 +82,17 @@ export class PlayerController {
     }
 
     if (keyboard.wasPressed(k.jump) || pad?.jumpPressed || touch?.wasPressed('jump')) this.buffer.press(ACT.JUMP, INPUT.buffer);
-    if (pressed(k.punch, PAD.X, MOUSE.LEFT, 'punch')) {
+    if (pressed(k.punch, PAD_BINDINGS.punch, MOUSE.LEFT, 'punch')) {
       const special = this.clock - this.motionTime < INPUT.motionPress;
       this.buffer.press(special ? ACT.SPECIAL : ACT.PUNCH, INPUT.buffer);
       if (special) this.motionTime = -Infinity;
     }
-    if (pressed(k.kick, PAD.Y, MOUSE.RIGHT, 'kick')) this.buffer.press(ACT.KICK, INPUT.buffer);
-    if (pressed(k.assist, PAD.B, MOUSE.MIDDLE, 'assist')) this.buffer.press(ACT.ASSIST, INPUT.buffer);
-    if (pressed(k.power, PAD.RB, MOUSE.BACK, 'power')) this.buffer.press(ACT.POWER, INPUT.buffer);
+    if (pressed(k.kick, PAD_BINDINGS.kick, MOUSE.RIGHT, 'kick')) this.buffer.press(ACT.KICK, INPUT.buffer);
+    if (pressed(k.assist, PAD_BINDINGS.assist, MOUSE.MIDDLE, 'assist')) this.buffer.press(ACT.ASSIST, INPUT.buffer);
+    if (pressed(k.power, PAD_BINDINGS.power, MOUSE.BACK, 'power')) this.buffer.press(ACT.POWER, INPUT.buffer);
 
     // dash button: the held direction, or forward from neutral
-    if (pressed(k.dash, PAD.LB, MOUSE.FORWARD, 'dash')) {
+    if (pressed(k.dash, PAD_BINDINGS.dash, MOUSE.FORWARD, 'dash')) {
       this.dashDir = move || f.face;
       this.buffer.press(ACT.DASH, INPUT.dashBuffer);
     }
