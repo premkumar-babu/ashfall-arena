@@ -485,10 +485,11 @@ export function createFighter(def: FighterDef, slot: number): Fighter {
         tracks the swing. ──────────────────────────────────────────────── */
   let weapon: THREE.Group | null = null;
   let bladeTip: THREE.Object3D | null = null;
+  let bladeZone: THREE.Object3D | null = null;
   if (def.armed) {
     weapon = new THREE.Group();
     weapon.position.set(0, -0.06, 0.10);
-    weapon.rotation.x = -Math.PI / 2;     // blade points out along the arm
+    weapon.rotation.x = Math.PI;          // blade continues the line of the arm, so the cut sweeps where the blade points
 
     const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.06, 0.42, 8), new THREE.MeshStandardMaterial({ color: 0x2E211A, roughness: 0.85 }));
     weapon.add(grip);
@@ -521,14 +522,20 @@ export function createFighter(def: FighterDef, slot: number): Fighter {
     bladeTip.position.y = 0.28 + def.heavyReach * 0.72;
     weapon.add(bladeTip);
 
+    // the strike zone sits nearer the hand than the visible tip: the box is as long as the blade,
+    // and centred on the tip it would reach a sword's length beyond the fighter
+    bladeZone = new THREE.Object3D();
+    bladeZone.position.y = 0.28 + def.heavyReach * 0.05;
+    weapon.add(bladeZone);
+
     armF.fist.add(weapon);
   }
 
   const fist = makeVolume(armF.fist, 0.64 * rc, 0.56 * rc, 0.64 * rc, PAL.strike);
   const foot = makeVolume(legF.foot, 0.86 * rc, 0.62 * rc, 0.86 * rc, PAL.strike);
   // the blade sweeps a long, thin volume; unarmed fighters never use it
-  const blade = def.armed && bladeTip
-    ? makeVolume(bladeTip, def.heavyReach * 0.95 * sc, 0.85 * sc, 0.7 * sc, PAL.gold)
+  const blade = def.armed && bladeZone
+    ? makeVolume(bladeZone, def.heavyReach * 0.55 * sc, 0.85 * sc, 0.7 * sc, PAL.gold)
     : foot;
 
   const aura = makeAura(def.accent);

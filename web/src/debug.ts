@@ -4,7 +4,7 @@ import { collectBones, normBone } from './anim/bones';
 import { ASSETS } from './assets/models';
 import { CLIPS } from './assets/loader';
 import { Assets } from './assets/pipeline';
-import { probeGaits, runMonkey, startFight } from './dev/harness';
+import { probeCombat, probeReach, raw as harnessRaw, probeGaits, runMonkey, startFight } from './dev/harness';
 import { Governor } from './core/frame-governor';
 import { feelDebug } from './fx/juice';
 import { INSTANCING } from './world/instancing';
@@ -73,7 +73,7 @@ export function installDebugHooks({ renderer, backend, loop }: DebugContext): vo
       document.body.dispatchEvent(new KeyboardEvent(up ? 'keyup' : 'keydown', { code, key: code, bubbles: true }));
     },
     // clip plumbing, so a bought clip that refuses to bind can be diagnosed instead of just looking frozen
-    harness: { monkey: runMonkey, start: startFight, probe: probeGaits },
+    harness: { monkey: runMonkey, start: startFight, probe: probeGaits, combat: probeCombat, reach: probeReach, raw: harnessRaw },
     clips: CLIPS,
     normBone,
     attachClips,

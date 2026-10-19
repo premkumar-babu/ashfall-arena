@@ -292,3 +292,129 @@ export function probeGaits(): GaitProbe[] {
   }
   return out;
 }
+
+/** Scripted combat scenarios: each returns what happened, for a human to read or a script to assert on. */
+export function probeCombat(): Record<string, unknown> {
+  const res: Record<string, unknown> = {};
+  const place = (gap: number): void => {
+    state.P1.x = -gap / 2;
+    state.P2.x = gap / 2;
+    state.P1.physicsBody?.teleport?.(state.P1.x, 0);
+    state.P2.physicsBody?.teleport?.(state.P2.x, 0);
+  };
+  const tap = (side: Side, a: ActionId, hold = 0.03): void => {
+    key(side, a, false);
+    stepFor(hold);
+    key(side, a, true);
+  };
+
+  // 1. a light connects, and training reports it
+  startFight({ p1: 0, p2: 2, training: true });
+  stepFor(0.2);
+  place(1.5);
+  tap('p1', 'punch');
+  stepFor(0.5);
+  res.lightHit = { hp2: +state.P2.hp.toFixed(1), p2: state.P2.state, combo: state.P1.combo };
+
+  // 2. chain: light, light, heavy inside the string
+  startFight({ p1: 1, p2: 2, versus: true });
+  stepFor(0.2);
+  place(1.5);
+  state.P2.hp = 100;
+  const chain: string[] = [];
+  tap('p1', 'punch'); stepFor(0.17); tap('p1', 'punch'); stepFor(0.17); tap('p1', 'kick'); stepFor(0.05);
+  chain.push(`chain=${state.P1.chain}`, `move=${state.P1.move?.name}`, `hp2=${state.P2.hp.toFixed(0)}`);
+  stepFor(1);
+  res.chain = chain;
+
+  // 3. parry: the defender taps block as the swing lands
+  startFight({ p1: 0, p2: 3, versus: true });
+  stepFor(0.2);
+  place(1.4);
+  key('p1', 'punch', false);
+  stepFor(0.03);
+  key('p1', 'punch', true);
+  stepFor(0.04);
+  key('p2', 'block', false);
+  stepFor(0.25);
+  key('p2', 'block', true);
+  res.parry = { hp2: +state.P2.hp.toFixed(1), p1: state.P1.state, parries: state.P2.parries };
+
+  // 4. the same swing against a held guard is a plain block
+  startFight({ p1: 0, p2: 3, versus: true });
+  stepFor(0.2);
+  place(1.4);
+  key('p2', 'block', false);
+  stepFor(0.3);
+  tap('p1', 'punch');
+  stepFor(0.4);
+  key('p2', 'block', true);
+  res.heldBlock = { hp2: +state.P2.hp.toFixed(1), p1: state.P1.state, parries: state.P2.parries };
+
+  // 5a. control: the same heavy in open space
+  startFight({ p1: 0, p2: 2, versus: true });
+  stepFor(0.2);
+  place(1.5);
+  const hpC = state.P2.hp;
+  tap('p1', 'kick');
+  stepFor(0.6);
+  res.heavyOpen = { dmg: +(hpC - state.P2.hp).toFixed(1), x2: +state.P2.x.toFixed(2), p1: state.P1.state };
+
+  // 5. corner: a heavy into the wall
+  startFight({ p1: 0, p2: 2, versus: true });
+  stepFor(0.2);
+  state.P2.x = BOUND - 0.4;
+  state.P1.x = BOUND - 1.9;
+  state.P1.physicsBody?.teleport?.(state.P1.x, 0);
+  state.P2.physicsBody?.teleport?.(state.P2.x, 0);
+  stepFor(0.05);
+  const hp0 = state.P2.hp;
+  tap('p1', 'kick');
+  stepFor(0.6);
+  res.corner = { dmg: +(hp0 - state.P2.hp).toFixed(1), x2: +state.P2.x.toFixed(2), p1x: +state.P1.x.toFixed(2) };
+  return res;
+}
+
+/** Raw stepping and key access, for ad-hoc scripts from the console. */
+export const raw = {
+  step: (seconds: number, each?: () => void): void => stepFor(seconds, each),
+  key: (side: Side, a: ActionId, up = false): void => key(side, a, up),
+};
+
+/** The furthest gap, in world units between the two fighters, at which each normal still connects. */
+export function probeReach(): Array<Record<string, unknown>> {
+  const out: Array<Record<string, unknown>> = [];
+  for (let i = 0; i < 4; i++) {
+    startFight({ p1: i, p2: (i + 2) % 4, versus: true });
+    stepFor(0.2);
+    const row: Record<string, unknown> = { fighter: state.P1.def.name };
+    for (const kind of ['punch', 'kick', 'sweep'] as const) {
+      let best = 0;
+      for (let gap = 1.6; gap <= 4.4; gap += 0.2) {
+        state.P1.x = -gap / 2;
+        state.P2.x = gap / 2;
+        state.P1.physicsBody?.teleport(state.P1.x, 0);
+        state.P2.physicsBody?.teleport(state.P2.x, 0);
+        state.P1.hp = state.P2.hp = 100;
+        state.P1.vx = state.P2.vx = 0;
+        stepFor(0.9);
+        // the dummy may have been knocked about: put the gap back
+        state.P1.x = -gap / 2;
+        state.P2.x = gap / 2;
+        state.P1.physicsBody?.teleport(state.P1.x, 0);
+        state.P2.physicsBody?.teleport(state.P2.x, 0);
+        state.P2.hp = 100;
+        if (kind === 'sweep') key('p1', 'block', false);
+        key('p1', kind === 'punch' ? 'punch' : 'kick', false);
+        stepFor(0.03);
+        key('p1', kind === 'punch' ? 'punch' : 'kick', true);
+        if (kind === 'sweep') key('p1', 'block', true);
+        stepFor(0.6);
+        if (state.P2.hp < 100) best = gap;
+      }
+      row[kind] = +best.toFixed(1);
+    }
+    out.push(row);
+  }
+  return out;
+}

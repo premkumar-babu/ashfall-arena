@@ -244,8 +244,8 @@ export function poseFighter(f: Fighter, dt: number, t: number): void {
        the cut so the blade tip — which carries the hitbox — travels a real arc. */
     const draw = clamp(-ext / 0.22, 0, 1);
     const cut = clamp(ext, 0, 1);
-    f.armF.shoulder.rotation.x = -2.55 - draw * 0.55 + cut * 3.05;
-    f.armF.elbow.rotation.x = -0.85 + draw * -0.35 + cut * 0.80;
+    f.armF.shoulder.rotation.x = -2.55 - draw * 0.55 + cut * 1.55;
+    f.armF.elbow.rotation.x = -0.85 + draw * -0.35 + cut * 0.55;
     f.armF.shoulder.rotation.z = -0.55 - draw * 0.25 + cut * 0.70;
     f.armB.shoulder.rotation.x = -0.40 - draw * 0.35 + cut * 0.75;
     f.armB.elbow.rotation.x = -1.50;
