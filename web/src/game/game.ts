@@ -101,7 +101,7 @@ export function simulate(dt: number): void {
     }
   }
 
-  let i1 = controllers[0].intent();
+  let i1 = state.autoP1 ? botIntent(P1, P2, dt) : controllers[0].intent();
   let i2 = versus ? controllers[1].intent()
     : state.rush ? rushBotIntent(P2, P1, dt)
       : state.training && training.dummy !== 'CPU' ? dummyIntent() : botIntent(P2, P1, dt);

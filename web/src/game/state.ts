@@ -36,6 +36,8 @@ class GameState {
   rush = false;
   /** TRAINING: a dummy, endless health and meter, input display and frame data (game/training.ts). */
   training = false;
+  /** Dev only: the CPU drives Player 1 as well (dev/harness.ts tournaments). */
+  autoP1 = false;
   difficulty: Difficulty = 'NORMAL';
   postOn = false;
 

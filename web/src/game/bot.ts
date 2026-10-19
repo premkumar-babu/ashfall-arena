@@ -52,6 +52,38 @@ export const DIFFICULTY: Readonly<Record<Difficulty, DifficultyTuning>> = {
 
 const BOT: BotTuning = { reaction: 0.12, range: 2.15, slop: 0.40, lowHealth: 30, ...DIFFICULTY.NORMAL };
 
+/*
+  Who the CPU is playing as changes how it plays, on top of the difficulty:
+  the range it likes to stand at, how often it jumps, dashes, throws and
+  reaches for the special, and how heavy its strings lean. The difficulty
+  still decides how well it does all of it.
+*/
+interface Personality {
+  range: number;
+  hop: number;
+  dash: number;
+  special: number;
+  throw: number;
+  heavy: number;
+  strings: number;
+}
+
+const PERSONALITY: Readonly<Record<string, Personality>> = {
+  // a straight sword and a square stance: the baseline
+  cinderward: { range: 2.4, hop: 1, dash: 1, special: 1, throw: 1, heavy: 0.4, strings: 0 },
+  // the long sabre: stands off at the tip of the blade and zones with the special
+  palevigil: { range: 2.85, hop: 1.1, dash: 0.7, special: 1.8, throw: 0.5, heavy: 0.55, strings: 0 },
+  // the brute: walks you down, grabs a guard, leans on the heavy
+  bronzemaw: { range: 1.95, hop: 0.45, dash: 1.4, special: 0.8, throw: 3, heavy: 0.5, strings: -1 },
+  // the cutthroat: in and out, off the ground, long light strings
+  nocturne: { range: 2.0, hop: 1.8, dash: 2.4, special: 1, throw: 1, heavy: 0.25, strings: 1 },
+};
+const NEUTRAL: Personality = { range: BOT.range, hop: 1, dash: 1, special: 1, throw: 1, heavy: 0.34, strings: 0 };
+
+export function personalityOf(id: string): Personality {
+  return PERSONALITY[id] ?? NEUTRAL;
+}
+
 export function isDifficulty(name: string | undefined): name is Difficulty {
   return name === 'EASY' || name === 'NORMAL' || name === 'HARD';
 }
@@ -77,12 +109,14 @@ export function botIntent(f: Fighter, foe: Fighter, dt: number): Intent {
   }
 
   b.t += dt;
+  const P = personalityOf(f.def.id);
+  const range = P.range;
   const dist = Math.abs(foe.x - f.x);
   const dir = foe.x > f.x ? 1 : -1;
 
   // reaction block, rolled once the moment the opponent commits to a swing
   const foeSwinging = foe.state === S.PUNCH || foe.state === S.KICK;
-  if (foeSwinging && foe.state !== b.lastFoeState && dist < BOT.range + 1.3) {
+  if (foeSwinging && foe.state !== b.lastFoeState && dist < range + 1.3) {
     if (Math.random() < BOT.blockChance) {
       // a parry is a guard raised just before the blow connects; most reactions are early and plain
       const lead = foe.move ? foe.move.startup - foe.stateTime : 0.1;
@@ -103,7 +137,7 @@ export function botIntent(f: Fighter, foe: Fighter, dt: number): Intent {
 
   // a swing that missed leaves its owner open: punish it before they recover
   if (foeSwinging && !foe.hitLanded && f.grounded && foe.move && attackPhase(foe) === 'recovery'
-    && dist < BOT.range + 0.4 && Math.random() < BOT.punish) {
+    && dist < range + 0.4 && Math.random() < BOT.punish) {
     b.state = BOT_STATE.PRESSURE;
     i.kickDown = true;
     return i;
@@ -117,7 +151,7 @@ export function botIntent(f: Fighter, foe: Fighter, dt: number): Intent {
   }
 
   // a turtle gets thrown
-  if (foe.state === S.BLOCK && f.grounded && dist < 1.9 && Math.random() < 0.05) {
+  if (foe.state === S.BLOCK && f.grounded && dist < 2.0 && Math.random() < 0.05 * P.throw) {
     b.state = BOT_STATE.PRESSURE;
     i.punchDown = i.kickDown = true;
     return i;
@@ -152,7 +186,7 @@ export function botIntent(f: Fighter, foe: Fighter, dt: number): Intent {
       b.gap -= dt;
       return i;
     }
-    if (dist > BOT.range + 0.6) {
+    if (dist > range + 0.6) {
       b.queue.length = 0;
     } else {
       b.state = BOT_STATE.PRESSURE;
@@ -173,7 +207,7 @@ export function botIntent(f: Fighter, foe: Fighter, dt: number): Intent {
     i.block = true;
     return i;
   }
-  if (f.grounded && dist > 4.6 && dist < 8.5 && b.t > b.nextHop && Math.random() < BOT.hop) {
+  if (f.grounded && dist > 4.6 && dist < 8.5 && b.t > b.nextHop && Math.random() < BOT.hop * P.hop) {
     b.nextHop = b.t + 2.4 + Math.random() * 3;
     i.jumpDown = true;
     i.move = dir;
@@ -186,26 +220,28 @@ export function botIntent(f: Fighter, foe: Fighter, dt: number): Intent {
   }
 
   // from range, the special: a bolt, a spear, a charge or a step behind them
-  if (f.grounded && dist > 3.6 && dist < 9.5 && specialReady(f) && Math.random() < BOT.special) {
+  if (f.grounded && dist > 3.6 && dist < 9.5 && specialReady(f) && Math.random() < BOT.special * P.special) {
     b.state = BOT_STATE.APPROACH;
     i.specialDown = true;
     return i;
   }
 
   // spacing
-  if (dist > BOT.range + BOT.slop) {
+  if (dist > range + BOT.slop) {
     b.state = BOT_STATE.APPROACH;
     i.move = dir;
     // close a big gap with a dash rather than a slow walk
-    if (dist > 5.2 && f.dashCd <= 0 && Math.random() < BOT.dash) i.dash = dir;
+    if (dist > 5.2 && f.dashCd <= 0 && Math.random() < BOT.dash * P.dash) i.dash = dir;
   } else if (dist < MIN_GAP + 0.2) {
     b.state = BOT_STATE.RETREAT;
     i.move = -dir;
+    // the light ones get out the quick way
+    if (f.dashCd <= 0 && f.grounded && Math.random() < 0.02 * Math.max(0, P.dash - 1)) i.dash = -dir;
   } else if (b.t > b.nextThink) {
     b.state = BOT_STATE.SPACING;
     b.nextThink = b.t + BOT.thinkMin + Math.random() * (BOT.thinkMax - BOT.thinkMin);
-    const n = 1 + Math.floor(Math.random() * BOT.strings);
-    for (let k = 0; k < n; k++) b.queue.push(Math.random() < 0.66 ? 'P' : 'K');
+    const n = Math.max(1, 1 + Math.floor(Math.random() * (BOT.strings + P.strings)));
+    for (let k = 0; k < n; k++) b.queue.push(Math.random() < 1 - P.heavy ? 'P' : 'K');
     // strings end on a launcher or a sweep now and then
     const end = Math.random();
     if (end < 0.28) b.queue.push('U');

@@ -83,11 +83,13 @@ export function stepHold(dt: number): boolean {
       const f = shot === 1 ? P1 : P2;
       setCinematic({ x: f.x, y: 2.35, dist: 5.0, yaw: f.face * 0.55, h: -0.35 });
       introCard(f, shot === 1 ? 0 : 1);
+      f.introT = INTRO_SHOT;                    // their entrance plays while the camera is on them
     }
   }
   if (match.hold > 0) return true;
   // the intro is over: back to the fight rig, and call the round
   introShot = -1;
+  P1.introT = P2.introT = 0;
   introCard(null, 0);
   setCinematic(null);
   document.body.classList.remove('intro');
@@ -340,7 +342,8 @@ export function endRound(winner: Fighter | null, reason: string): void {
   announce(call, 2000, 'slam');
   // and the camera goes to the winner, standing over it
   if (winner && reason !== 'FATALITY' && reason !== 'DRAW') {
-    setCinematic({ x: winner.x, y: 2.15, dist: 7.3, yaw: winner.face * 0.42 });
+    // far enough back that the KO's lens punch still leaves the win pose head to toe in frame
+    setCinematic({ x: winner.x, y: 2.3, dist: 9.6, yaw: winner.face * 0.42 });
   }
 
   later(() => {

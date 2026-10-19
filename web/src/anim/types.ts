@@ -9,7 +9,7 @@ export type LocoSlot = 'RUN' | 'LAND';
 /* Moments that are not states either: the throw's own hurl, the recoil of a
    blow caught on the guard, the bash that follows a parry, and the round
    winner's pose. Each is chosen by bodySlot() from what the fighter is doing. */
-export type MomentSlot = 'THROW' | 'BLOCK_HIT' | 'RIPOSTE' | 'WIN';
+export type MomentSlot = 'THROW' | 'BLOCK_HIT' | 'RIPOSTE' | 'WIN' | 'INTRO';
 export type AnimSlot = FighterState | LocoSlot | MomentSlot;
 
 export type ActionMap = Partial<Record<AnimSlot, THREE.AnimationAction>>;

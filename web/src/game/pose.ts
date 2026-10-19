@@ -139,6 +139,7 @@ export function resetBodyLanguage(f: Fighter): void {
   f.dazed = false;
   f.won = false;
   f.riposteT = 0;
+  f.introT = 0;
   f.lean.rotation.set(0, 0, 0);
   f.spin.rotation.set(0, 0, 0);
   f.spin.position.set(0, 0, 0);

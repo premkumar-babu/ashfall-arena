@@ -28,7 +28,7 @@ const ANIM_MAP: Readonly<Record<FighterState, readonly string[]>> = {
 
 /** Unmatched clips (every single Mixamo download is called "mixamo.com") are dealt out in this order. */
 const CLIP_ORDER: readonly FighterState[] = ['IDLE', 'KICK', 'PUNCH', 'HITSTUN', 'KO', 'WALK'];
-const ONE_SHOT: readonly AnimSlot[] = ['PUNCH', 'KICK', 'HITSTUN', 'KO', 'LAND', 'THROW', 'BLOCK_HIT', 'RIPOSTE', 'WIN'];
+const ONE_SHOT: readonly AnimSlot[] = ['PUNCH', 'KICK', 'HITSTUN', 'KO', 'LAND', 'THROW', 'BLOCK_HIT', 'RIPOSTE', 'WIN', 'INTRO'];
 
 /* Mixamo character-only exports still carry a stub track — "mixamo.com" at
    0.03 s — which is a single bind-pose frame, not motion. Binding one looks
@@ -121,7 +121,7 @@ export const ANIM_LIB = {
     nocturne: { RUN: 'Running_B', WALK: 'Walking_C' },
   } as Readonly<Record<string, ClipTable>>,
   /** The moments beside the states (types.ts MomentSlot). */
-  moments: { THROW: 'Throw', BLOCK_HIT: 'Melee_Block_Hit', RIPOSTE: 'Melee_Block_Attack', WIN: 'Spawn_Air' } satisfies ClipTable,
+  moments: { THROW: 'Throw', BLOCK_HIT: 'Melee_Block_Hit', RIPOSTE: 'Melee_Block_Attack', WIN: 'Spawn_Air', INTRO: 'Spawn_Ground' } satisfies ClipTable,
   /** Where a library clip beats whatever the model happened to ship with. */
   force: ['PUNCH', 'KICK', 'BLOCK', 'HITSTUN', 'KO'] as readonly FighterState[],
   /** Summons only ever idle, run in and strike. */
@@ -630,6 +630,10 @@ function bodySlot(f: Fighter, dt: number): AnimSlot {
   const s = f.state;
   const acts = f.actions!;
   // the moments that override the state's own clip
+  if (f.introT > 0) {
+    f.introT = Math.max(0, f.introT - dt);
+    if (acts.INTRO) return 'INTRO';
+  }
   if (f.won && !air && (s === 'IDLE' || s === 'WALK') && acts.WIN) return 'WIN';
   if (s === 'PUNCH' && f.move?.name === 'THROW' && acts.THROW) return 'THROW';
   if (f.riposteT > 0 && !air && s !== 'HITSTUN' && s !== 'KO' && acts.RIPOSTE) return 'RIPOSTE';

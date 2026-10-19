@@ -78,6 +78,8 @@ export interface StartOptions {
   versus?: boolean;
   rush?: boolean;
   training?: boolean;
+  /** The CPU plays both sides. */
+  cpuVsCpu?: boolean;
   difficulty?: Difficulty;
 }
 
@@ -90,6 +92,7 @@ export function startFight(o: StartOptions = {}): void {
   state.mode1P = !(o.versus ?? true);
   state.rush = !!o.rush;
   state.training = !!o.training;
+  state.autoP1 = !!o.cpuVsCpu;
   if (o.training) state.mode1P = true;
   if (o.difficulty) setDifficulty(o.difficulty);
   document.body.classList.remove('attract', 'titling', 'selecting', 'bye', 'modal');
@@ -505,4 +508,42 @@ export function probeFinishers(): Array<Record<string, unknown>> {
   }
   out.push({ errors });
   return out;
+}
+
+export interface DuelResult {
+  p1: string;
+  p2: string;
+  p1Wins: number;
+  p2Wins: number;
+  draws: number;
+  avgRound: number;
+  violations: number;
+}
+
+/** CPU against CPU, one round per bout, for a given number of rounds. Both sides use the same difficulty. */
+export async function cpuDuel(p1: number, p2: number, rounds: number, difficulty: Difficulty = 'NORMAL'): Promise<DuelResult> {
+  const r: DuelResult = { p1: '', p2: '', p1Wins: 0, p2Wins: 0, draws: 0, avgRound: 0, violations: 0 };
+  let total = 0;
+  for (let k = 0; k < rounds; k++) {
+    startFight({ p1, p2, versus: false, cpuVsCpu: true, difficulty });
+    r.p1 = state.P1.def.name;
+    r.p2 = state.P2.def.name;
+    let t = 0;
+    let n = 0;
+    while (!match.over && t < 120) {
+      try { simulate(DT); } catch { r.violations++; }
+      for (const f of state.fighters) if (bad(f)) r.violations++;
+      t += DT;
+      if (++n % 600 === 0) await new Promise((res) => setTimeout(res, 0));
+    }
+    // let a finish or a fatal blow play out so the next bout starts clean
+    for (let w = 0; w < 600 && (finishing() || inFatality() || inFatalBlow()); w++) simulate(DT);
+    total += t;
+    if (state.P1.won && !state.P2.won) r.p1Wins++;
+    else if (state.P2.won && !state.P1.won) r.p2Wins++;
+    else r.draws++;
+  }
+  state.autoP1 = false;
+  r.avgRound = +(total / rounds).toFixed(1);
+  return r;
 }

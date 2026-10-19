@@ -145,6 +145,8 @@ export interface Fighter {
   won: boolean;
   /** Seconds left of the bash that follows a parry. */
   riposteT: number;
+  /** Seconds left of this fighter's entrance, while the intro camera is on them. */
+  introT: number;
   /** Damage dealt by the string in progress, for the combo counter. */
   comboDmg: number;
   /** How far the body has dropped into a low move, 0 → 1. */
@@ -564,7 +566,7 @@ export function createFighter(def: FighterDef, slot: number): Fighter {
     hitLanded: false, guardDropAt: -10, chain: 0, activeHitbox: null, stunTime: 0,
     lockFace: 0, airMove: false, land: 0, hitDir: 0,
     prevVx: 0, accel: 0, flip: 0, flipDir: 1, flipTime: 0.42, zip: 0, landT: 0, landLag: 0, wasAir: false, running: false,
-    launched: false, juggles: 0, downT: 0, dazed: false, won: false, riposteT: 0, crouch: 0, comboDmg: 0,
+    launched: false, juggles: 0, downT: 0, dazed: false, won: false, riposteT: 0, introT: 0, crouch: 0, comboDmg: 0,
     dashTime: 0, dashCd: 0, dashDir: 1,
     airTime: 0, jumpReleased: true,
 
