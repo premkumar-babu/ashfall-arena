@@ -100,7 +100,7 @@ export function stepAssist(a: Assist | null, foe: Fighter, dt: number, t: number
            moment an orb hit and was spent a fresh one was thrown — a single
            summon could land its orb two or three times. */
         if (d.orb && a.orbT < 0 && !a.hitLanded && a.t >= (d.orbAt ?? 0)) fireOrb(a);
-        if (a.t > 0.62 || (a.y <= 0 && a.t > 0.3)) {
+        if (a.t > d.strikeEnd || (a.y <= 0 && a.t > 0.3)) {
           a.state = A.RETREAT;
           a.t = 0;
         }
@@ -125,7 +125,7 @@ export function stepAssist(a: Assist | null, foe: Fighter, dt: number, t: number
           spawnRing(_v.set(a.x, 0.5, PLANE_Z), d.color);
           Sfx.quake(a.x);
         }
-        if (a.t > 0.9) {
+        if (a.t > d.strikeEnd) {
           a.state = A.RETREAT;
           a.t = 0;
         }

@@ -688,10 +688,13 @@ function setRate(f: Fighter, slot: AnimSlot): void {
 */
 const impactCache = new WeakMap<THREE.AnimationAction, number>();
 
-function measureImpact(f: Fighter, clip: THREE.AnimationClip): number {
+function measureImpact(f: AnimTarget, clip: THREE.AnimationClip): number {
   const model = f.model;
   const frame = model?.parent;
   if (!model || !frame) return clip.duration * 0.4;
+  // a summon's model is pitched and rolled by its body pose, which would tilt the axis being measured
+  const rx = model.rotation.x, rz = model.rotation.z;
+  model.rotation.x = model.rotation.z = 0;
   const ends: THREE.Object3D[] = [];
   const saved: Array<[THREE.Object3D, THREE.Quaternion]> = [];
   model.traverse((n) => {
@@ -719,12 +722,14 @@ function measureImpact(f: Fighter, clip: THREE.AnimationClip): number {
   probe.stopAllAction();
   probe.uncacheRoot(model);
   for (const [n, q] of saved) n.quaternion.copy(q);
+  model.rotation.x = rx;
+  model.rotation.z = rz;
   // a clip whose reach peaks at the very start or end is not a strike; fall back to a sane fraction
   if (at < clip.duration * 0.12 || at > clip.duration * 0.85) at = clip.duration * 0.4;
   return at;
 }
 
-function impactOf(f: Fighter, a: THREE.AnimationAction): number {
+function impactOf(f: AnimTarget, a: THREE.AnimationAction): number {
   let v = impactCache.get(a);
   if (v === undefined) {
     v = measureImpact(f, a.getClip());
@@ -733,20 +738,46 @@ function impactOf(f: Fighter, a: THREE.AnimationAction): number {
   return v;
 }
 
+/**
+ * Where in a clip of length D, whose contact frame is tc, a swing should be at
+ * time t of a strike laid out as startup, active and recovery: the wind-up from
+ * `from` to the contact over startup, the contact held through the active
+ * window, and the rest of the clip over recovery.
+ */
+function warpClipTime(D: number, tc: number, t: number, startup: number, active: number, recovery: number, from = 0): number {
+  const hold = Math.min(0.08, (D - tc) * 0.2);
+  let ct: number;
+  if (t < startup) ct = from + (tc - from) * (t / startup);
+  else if (t < startup + active) ct = tc + hold * ((t - startup) / active);
+  else ct = tc + hold + (D - tc - hold) * clamp((t - startup - active) / recovery, 0, 1);
+  return Math.min(ct, D - 1e-3);
+}
+
 /** Drive an attack clip from the move's own clock rather than letting it run. */
 function warpAttack(f: Fighter, a: THREE.AnimationAction): void {
   const m = f.move;
   if (!m) return;
-  const D = a.getClip().duration;
-  const tc = impactOf(f, a);
-  const hold = Math.min(0.08, (D - tc) * 0.2);
-  const t = f.stateTime;
-  let ct: number;
-  if (t < m.startup) ct = tc * (t / m.startup);
-  else if (t < m.startup + m.active) ct = tc + hold * ((t - m.startup) / m.active);
-  else ct = tc + hold + (D - tc - hold) * clamp((t - m.startup - m.active) / m.recovery, 0, 1);
   a.timeScale = 0;
-  a.time = Math.min(ct, D - 1e-3);
+  a.time = warpClipTime(a.getClip().duration, impactOf(f, a), f.stateTime, m.startup, m.active, m.recovery);
+}
+
+/* The summons had the fighters' old problem: a 1.07 s chop played at rate 1
+   from the start of a 0.62 s strike, so the wraith's arm was still rising when
+   it hit and the idol swept sideways a fifth of a second after the slam. Each
+   summon's strike is laid out in roster.ts (contactAt, holdTo, strikeEnd). */
+function warpAssist(a: Assist, act: THREE.AnimationAction): void {
+  const d = a.def;
+  const D = act.getClip().duration;
+  const tc = impactOf(a, act);
+  act.timeScale = 0;
+  act.time = warpClipTime(D, tc, a.t, d.contactAt, d.holdTo - d.contactAt, d.strikeEnd - d.holdTo, tc * d.windFrom);
+}
+
+/** Dev: where the current swing sits against its measured contact frame (harness sync probe). */
+export function swingSync(t: AnimTarget): { clip: string; time: number; contact: number | null } | null {
+  const a = t.currentAction;
+  if (!a) return null;
+  return { clip: a.getClip().name, time: +a.time.toFixed(3), contact: impactCache.has(a) ? +impactCache.get(a)!.toFixed(3) : null };
 }
 
 /** A hit reaction plays across the stun it is for, not at its authored length. */
@@ -794,7 +825,11 @@ function assistAnimSlot(a: Assist): FighterState {
 export function driveAssistMixer(a: Assist | null, dt: number): void {
   if (!a) return;
   if (a.mixer) {
-    playAction(a, assistAnimSlot(a));
+    const slot = assistAnimSlot(a);
+    playAction(a, slot);
+    const act = a.actions?.[slot];
+    if (a.state === A.STRIKE && act) warpAssist(a, act);
+    else if (act) act.timeScale = 1;
     a.mixer.update(dt);
   }
   poseAssistModel(a, dt);

@@ -51,6 +51,15 @@ export interface AssistDef {
   readonly orbHitstun?: number;
   readonly orbSpeed?: number;
   readonly orbLife?: number;
+  /* How the strike clip is laid over the strike (anim/animation.ts warpAssist),
+     in seconds of the summon's strike clock: the clip's contact frame lands at
+     contactAt and holds to holdTo, the rest plays out by strikeEnd, when the
+     summon turns to leave. windFrom is how far into its own wind-up the clip
+     starts, as a fraction of the contact time. */
+  readonly contactAt: number;
+  readonly holdTo: number;
+  readonly strikeEnd: number;
+  readonly windFrom: number;
 }
 
 export const ROSTER: readonly FighterDef[] = [
@@ -118,6 +127,8 @@ export const ASSIST_ROSTER: readonly AssistDef[] = [
     activeFrom: 0.07, activeTo: 0.39,
     damage: 6, knockback: 9.0, hitstun: 0.38,
     orb: true, orbAt: 0.13, orbDamage: 4, orbKnockback: 9.0, orbHitstun: 0.38, orbSpeed: 13.5, orbLife: 1.5,
+    // the chop lands as the orb is thrown; the arm starts already raised
+    contactAt: 0.13, holdTo: 0.39, strikeEnd: 0.62, windFrom: 0.6,
   },
   {
     id: 'carrionidol', name: 'CARRION IDOL', title: 'Ground-slam shockwave',
@@ -127,6 +138,8 @@ export const ASSIST_ROSTER: readonly AssistDef[] = [
     activeFrom: 0.36, activeTo: 0.68,
     damage: 10, knockback: 9.0, hitstun: 0.38,
     orb: false,
+    // contactAt is the moment the slam meets the floor (assist.ts: risen by 0.18, down at 26/s, lands at 0.25)
+    contactAt: 0.25, holdTo: 0.40, strikeEnd: 0.90, windFrom: 0,
   },
 ];
 

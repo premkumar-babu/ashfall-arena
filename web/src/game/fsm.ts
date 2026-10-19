@@ -250,6 +250,16 @@ export function stepState(f: Fighter, intent: Intent, dt: number): void {
   }
 }
 
+/**
+ * Start a scripted swing (fatal blow, fatality) so its contact frame lands
+ * `lead` seconds from now: the clip warp shows the contact at stateTime =
+ * move.startup, so the swing starts that far in.
+ */
+export function swingInto(f: Fighter, st: typeof S.PUNCH | typeof S.KICK, lead: number, move: Move = MOVES.FATAL): void {
+  enterState(f, st, move);
+  f.stateTime = Math.max(0, move.startup - lead);
+}
+
 /** A jump carries the momentum it was launched with, so a running jump-in actually crosses ground. */
 export function launchJump(f: Fighter, dir: number): void {
   /* A jump with a direction is a somersault, forward or back, over the whole

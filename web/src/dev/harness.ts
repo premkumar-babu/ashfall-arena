@@ -1,4 +1,4 @@
-import { overrideSlot } from '../anim/animation';
+import { overrideSlot, swingSync } from '../anim/animation';
 import type { AnimSlot } from '../anim/types';
 import { PHASE, BOUND, S } from '../config/constants';
 import { BINDINGS, type ActionId, type Side } from '../input/bindings';
@@ -561,4 +561,72 @@ export async function cpuDuel(p1: number, p2: number, rounds: number, difficulty
   state.autoP1 = false;
   r.avgRound = +(total / rounds).toFixed(1);
   return r;
+}
+
+/**
+ * Where each scripted swing's clip is when its blow lands: summons at the orb or
+ * the quake, the fatal blow and the fatality at each wound. `dt` is clip time
+ * minus the clip's measured contact frame: 0 to about 0.09 means the strike
+ * pose is on screen at the moment of impact.
+ */
+export function probeSync(): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  const place = (a: number, b: number): void => {
+    state.P1.x = a; state.P2.x = b;
+    state.P1.physicsBody?.teleport(a, 0); state.P2.physicsBody?.teleport(b, 0);
+  };
+  // summons
+  for (const k of [0, 1]) {
+    startFight({ p1: 0, p2: 2, assist1: k, versus: true });
+    stepFor(0.2);
+    place(-3, 3);
+    state.P1.meter = 100;
+    state.P1.assistCd = 0;
+    key('p1', 'assist', false); stepFor(0.03); key('p1', 'assist', true);
+    const a = state.P1.assist;
+    const rows: string[] = [];
+    let orbDone = false;
+    let quakeDone = false;
+    stepFor(2, () => {
+      if (!a || a.state !== 'STRIKE') return;
+      const s = swingSync(a);
+      if (!s) return;
+      if (!orbDone && a.orbT >= 0) { orbDone = true; rows.push(`orb t=${a.t.toFixed(2)} clip=${s.time} contact=${s.contact}`); }
+      if (!quakeDone && a.quaked) { quakeDone = true; rows.push(`quake t=${a.t.toFixed(2)} clip=${s.time} contact=${s.contact}`); }
+    });
+    out[a?.def.name ?? `assist${k}`] = rows;
+  }
+  // the fatal blow and each fatality: clip against contact at every wound
+  for (let i = 0; i < 4; i++) {
+    const row: string[] = [];
+    const watch = (att: Fighter, vic: Fighter, tag: string): void => {
+      let prev = vic.flash;
+      let n = 0;
+      stepFor(6, () => {
+        if (vic.flash >= 0.99 && prev < 0.99) {
+          const s = swingSync(att);
+          n++;
+          if (s && s.contact !== null) row.push(`${tag}${n} ${s.clip} dt=${(s.time - s.contact).toFixed(3)}`);
+        }
+        prev = vic.flash;
+      });
+    };
+    startFight({ p1: i, p2: (i + 2) % 4, versus: true });
+    stepFor(0.2);
+    place(-0.9, 0.9);
+    state.P1.hp = 20;
+    key('p1', 'power', false); stepFor(0.05); key('p1', 'power', true);
+    watch(state.P1, state.P2, 'blow');
+    startFight({ p1: i, p2: (i + 1) % 4, versus: true });
+    stepFor(0.2);
+    place(-0.7, 0.7);
+    state.P1.rounds = 1;
+    state.P2.hp = 2;
+    key('p1', 'punch', false); stepFor(0.03); key('p1', 'punch', true);
+    stepFor(0.5);
+    key('p1', 'power', false); stepFor(0.05); key('p1', 'power', true);
+    watch(state.P1, state.P2, 'fatality');
+    out[state.P1.def.name] = row;
+  }
+  return out;
 }

@@ -10,7 +10,7 @@ import { spawnRing, spawnStreaks } from '../fx/vfx';
 import { banner } from '../ui/banner';
 import { landHit } from './collision';
 import type { Fighter } from './fighter';
-import { attackPhase, enterState } from './fsm';
+import { attackPhase, enterState, swingInto } from './fsm';
 import { ACT, type Intent } from './intent';
 import { finishing } from './finish';
 import { match } from './match';
@@ -45,6 +45,8 @@ export const FATAL_BLOW = {
 
 /** The cinematic's beats, in seconds from contact. */
 const BEAT = { hit1: 0.18, cut2: 0.62, hit2: 0.8, cut3: 1.25, hit3: 1.45, end: 1.85 } as const;
+/** How long before each blow its swing starts. */
+const LEAD = 0.2;
 
 interface Runtime {
   used: boolean;
@@ -59,6 +61,8 @@ interface Scene {
   dir: number;
   hits: number;
   cuts: number;
+  /** Swings started: each begins a little before its blow so the strike pose lands on the beat. */
+  swings: number;
 }
 
 const runtime = new WeakMap<Fighter, Runtime>();
@@ -112,7 +116,9 @@ export function tryFatalBlow(f: Fighter, intent: Intent): boolean {
 function begin(att: Fighter, def: Fighter): void {
   const r = rt(att);
   r.used = true;
-  scene = { att, def, t: 0, dir: att.face, hits: 0, cuts: 0 };
+  scene = { att, def, t: 0, dir: att.face, hits: 0, cuts: 0, swings: 1 };
+  // the lunge was a PUNCH: each blow alternates, so every swing cross-fades instead of snapping to frame 0
+  swingInto(att, S.KICK, BEAT.hit1);
   att.vx = def.vx = 0;
   enterState(def, S.HITSTUN);
   def.stunTime = 99;
@@ -126,8 +132,7 @@ function strike(n: number): void {
   const S2 = scene!;
   const { att, def, dir } = S2;
   S2.hits = n;
-  // the attacker's body goes through a swing for each blow; no hitbox, the damage is at the end
-  enterState(att, n === 2 ? S.KICK : S.PUNCH, MOVES.FATAL);
+  // the swing was started ahead of the beat (stepFatalBlow); this is only the blow landing
   _v.set(def.x - dir * 0.25, 1.5 + n * 0.25, PLANE_Z + 0.2);
   def.flash = 1;
   def.white = FLASH_FRAMES;
@@ -172,6 +177,9 @@ export function stepFatalBlow(dt: number): void {
   const { att, def, dir } = S2;
   att.vx = def.vx = 0;
 
+  // each swing starts LEAD before its blow, so the strike pose is on screen as the blood flies
+  if (S2.t >= BEAT.hit2 - LEAD && S2.swings < 2) { S2.swings = 2; swingInto(att, S.PUNCH, BEAT.hit2 - S2.t); }
+  if (S2.t >= BEAT.hit3 - LEAD && S2.swings < 3) { S2.swings = 3; swingInto(att, S.KICK, BEAT.hit3 - S2.t); }
   if (S2.t >= BEAT.hit1 && S2.hits < 1) strike(1);
   if (S2.t >= BEAT.cut2 && S2.cuts < 1) {
     S2.cuts = 1;

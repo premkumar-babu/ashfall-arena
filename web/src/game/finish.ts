@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { FLASH_FRAMES, MOVES, PLANE_Z, ROUNDS_TO_WIN, S } from '../config/constants';
+import { FLASH_FRAMES, PLANE_Z, ROUNDS_TO_WIN, S } from '../config/constants';
 import { Music } from '../audio/music';
 import { Sfx } from '../audio/sfx';
 import { setCinematic } from '../camera/camera-rig';
@@ -14,7 +14,7 @@ import { scene } from '../render/stage';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { announce, clearAnnounce } from '../ui/announcer';
 import type { Fighter } from './fighter';
-import { enterState } from './fsm';
+import { enterState, swingInto } from './fsm';
 import { blankIntent, type Intent } from './intent';
 import { endRound } from './match';
 import { state } from './state';
@@ -345,7 +345,7 @@ const ashenOath: Script = {
     const { winner: w, loser: l, dir, t } = F;
     closeIn(F, dt, 1.45, ASHEN.close);
     if (t >= ASHEN.close && once(F, 'swing')) {
-      enterState(w, S.KICK, MOVES.FATAL);
+      swingInto(w, S.KICK, ASHEN.strike - ASHEN.close);   // the chop bottoms out on the strike
       Sfx.swish(1, w.x);
     }
     if (t >= ASHEN.strike && once(F, 'strike')) {
@@ -436,7 +436,7 @@ const soulHarvest: Script = {
     const { winner: w, loser: l, dir, t } = F;
     closeIn(F, dt, 1.55, SOUL.close);
     if (t >= SOUL.close && once(F, 'thrust')) {
-      enterState(w, S.PUNCH, MOVES.FATAL);
+      swingInto(w, S.PUNCH, SOUL.impale - SOUL.close);     // the blade is out as it impales
       Sfx.swish(1, w.x);
     }
     if (t >= SOUL.impale && once(F, 'impale')) {
@@ -504,7 +504,7 @@ const groundPound: Script = {
     const { winner: w, loser: l, dir, t } = F;
     closeIn(F, dt, 1.25, POUND.grab);
     if (t >= POUND.grab && once(F, 'grab')) {
-      enterState(w, S.PUNCH, MOVES.FATAL);
+      swingInto(w, S.PUNCH, 0.1);                         // the reaching arm is out before the first lift
       l.dazed = false;
       setCinematic({ x: w.x, y: 2.2, dist: 10, yaw: dir * 0.18, h: -0.7 });
       Sfx.block(l.x);
@@ -520,7 +520,7 @@ const groundPound: Script = {
         place(l, x, Math.sin(k * Math.PI) * 3.0 + (1 - k) * 0.2);
         l.grounded = false;
         if (once(F, `swing${n}`)) {
-          enterState(w, n % 2 ? S.PUNCH : S.KICK, MOVES.FATAL);
+          swingInto(w, n % 2 ? S.PUNCH : S.KICK, POUND.lift);
           l.flip = 0.001;
           l.flipDir = side === dir ? -1 : 1;
           l.flipTime = POUND.lift;
@@ -607,13 +607,14 @@ const thousandCuts: Script = {
     if (t >= CUTS.first && t < CUTS.settle) setCinematic({ x: l.x, y: 2.3, dist: 7.2, yaw: orbit, h: -0.2 });
     for (let n = 0; n < CUTS.count; n++) {
       const at = CUTS.first + n * CUTS.every;
+      // each cut's swing starts while the winner is still hidden, so it is already at the cut when they appear
+      if (t >= at - 0.07 && once(F, `pre${n}`)) swingInto(w, n % 2 ? S.PUNCH : S.KICK, at - t);
       if (t >= at && once(F, `cut${n}`)) {
         const side = n % 2 === 0 ? -dir : dir;
         const high = n === 3 || n === 5;
         place(w, l.x + side * 1.3, high ? 1.4 : 0);
         w.face = -side;
         w.lean.visible = true;
-        enterState(w, n % 2 ? S.PUNCH : S.KICK, MOVES.FATAL);
         _c.set(l.x, 1.2 + Math.random() * 1.2, PLANE_Z + 0.2);
         wound(F, _c, -side, 16, 6);
         spawnStreaks(_c, -side, w.def.lite ? 0xDCB6FF : w.def.accent, 10);
