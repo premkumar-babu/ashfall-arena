@@ -9,8 +9,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;900&family=Cinzel+Decorative:wght@700;900&family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;500&family=Teko:wght@500;600;700&family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&family=Bebas+Neue&family=Russo+One&display=swap">
-  <script type="module" crossorigin src="./assets/index-CgoGDUNf.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-aKZ6o1Uq.css">
+  <script type="module" crossorigin src="./assets/index-6y-ncfJU.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-DR1KXW_H.css">
 </head>
 <body>
 <div id="game">
@@ -192,26 +192,32 @@
           <thead><tr><th></th><th>PLAYER 1</th><th>PLAYER 2</th><th>GAMEPAD</th></tr></thead>
           <tbody>
             <tr><td>Move</td><td><kbd>A</kbd><kbd>D</kbd></td><td><kbd>&larr;</kbd><kbd>&rarr;</kbd></td><td>Stick / D-pad</td></tr>
-            <tr><td>Dash</td><td><kbd>L-Shift</kbd> or <kbd>AA</kbd><kbd>DD</kbd></td><td><kbd>R-Shift</kbd> or double-tap</td><td><kbd>LB</kbd> or double-tap</td></tr>
+            <tr><td>Dash</td><td><kbd>L-Shift</kbd> or <kbd>A</kbd><kbd>A</kbd> / <kbd>D</kbd><kbd>D</kbd> &middot; forward thumb button</td><td><kbd>R-Shift</kbd> or double-tap</td><td><kbd>LB</kbd> or double-tap</td></tr>
             <tr><td>Jump</td><td><kbd>W</kbd></td><td><kbd>&uarr;</kbd></td><td><kbd>A</kbd> / up</td></tr>
             <tr><td>Block</td><td><kbd>S</kbd></td><td><kbd>&darr;</kbd></td><td>Triggers / down</td></tr>
-            <tr><td>Light</td><td><kbd>J</kbd> &middot; left click</td><td><kbd>1</kbd></td><td><kbd>X</kbd></td></tr>
-            <tr><td>Heavy</td><td><kbd>K</kbd> &middot; right click</td><td><kbd>2</kbd></td><td><kbd>Y</kbd></td></tr>
-            <tr><td>Summon</td><td><kbd>L</kbd><kbd>R</kbd> &middot; middle click</td><td><kbd>3</kbd></td><td><kbd>B</kbd></td></tr>
-            <tr><td>Overdrive</td><td><kbd>I</kbd></td><td><kbd>0</kbd></td><td><kbd>RB</kbd></td></tr>
-            <tr><td>Special</td><td><kbd>A</kbd><kbd>D</kbd> + <kbd>J</kbd> (back, forward, light)</td><td>back, forward + <kbd>1</kbd></td><td>back, forward + <kbd>X</kbd></td></tr>
-            <tr><td>Throw</td><td><kbd>J</kbd> + <kbd>K</kbd></td><td><kbd>1</kbd> + <kbd>2</kbd></td><td><kbd>X</kbd> + <kbd>Y</kbd></td></tr>
+            <tr><td>Light</td><td><kbd>J</kbd> &middot; left click</td><td><kbd>1</kbd> or <kbd>,</kbd></td><td><kbd>X</kbd></td></tr>
+            <tr><td>Heavy</td><td><kbd>K</kbd> &middot; right click</td><td><kbd>2</kbd> or <kbd>.</kbd></td><td><kbd>Y</kbd></td></tr>
+            <tr><td>Assist</td><td><kbd>L</kbd> or <kbd>R</kbd> &middot; middle click</td><td><kbd>3</kbd> or <kbd>/</kbd></td><td><kbd>B</kbd></td></tr>
+            <tr><td>Overdrive</td><td><kbd>I</kbd> &middot; back thumb button</td><td><kbd>0</kbd> or <kbd>'</kbd></td><td><kbd>RB</kbd></td></tr>
+            <tr><td>Special</td><td>back, forward + <kbd>J</kbd> (<kbd>A</kbd> <kbd>D</kbd> facing right, <kbd>D</kbd> <kbd>A</kbd> facing left)</td><td>back, forward + <kbd>1</kbd></td><td>back, forward + <kbd>X</kbd></td></tr>
+            <tr><td>Throw</td><td><kbd>J</kbd> + <kbd>K</kbd> together</td><td><kbd>1</kbd> + <kbd>2</kbd> together</td><td><kbd>X</kbd> + <kbd>Y</kbd> together</td></tr>
             <tr><td>Uppercut</td><td><kbd>S</kbd> + <kbd>J</kbd></td><td><kbd>&darr;</kbd> + <kbd>1</kbd></td><td>down + <kbd>X</kbd></td></tr>
             <tr><td>Sweep</td><td><kbd>S</kbd> + <kbd>K</kbd></td><td><kbd>&darr;</kbd> + <kbd>2</kbd></td><td>down + <kbd>Y</kbd></td></tr>
-            <tr><td>Fatal Blow</td><td colspan="3">Overdrive at 30% health or less &middot; once a match</td></tr>
-            <tr><td>Fatality</td><td colspan="3">at <b>FINISH THEM</b>, get close and press Overdrive</td></tr>
+            <tr><td>Parry</td><td colspan="3">press block just as a blow arrives (inside about 0.09 s) while facing it: no damage, and the attacker is stunned for half a second &middot; a guard held from earlier only blocks, and one dropped in the last 0.45 s cannot parry &middot; specials, throws and summons cannot be parried</td></tr>
+            <tr><td>Chain</td><td colspan="3">on the ground, after a light or heavy lands, press the next attack, or the special, before its recovery ends &middot; the last link launches &middot; Nocturne links four more hits, Pale Vigil three, Cinderward two, Bronzemaw one</td></tr>
+            <tr><td>Armour</td><td colspan="3">Bronzemaw's heavy shrugs off the first blow in its wind-up and swing: he takes 75% of it and the swing carries on &middot; specials, throws, summons and a blow that would finish him still stop it</td></tr>
+            <tr><td>Corner</td><td colspan="3">a clean hit near the wall shoves the attacker back &middot; a heavy one also splats the victim off the wall for 3 extra damage</td></tr>
+            <tr><td>Training</td><td colspan="3">pick <b>TRAINING</b> on the select screen &middot; <kbd>V</kbd> switches the dummy between STAND, GUARD and CPU &middot; health and meter refill, so the fatal blow cannot be tried here &middot; inputs and frame data show on the left</td></tr>
+            <tr><td>Fatal Blow</td><td colspan="3">Overdrive at 30% health or less, on the ground &middot; costs no meter, and a guard does not stop it &middot; once a match; a miss comes back after 7 seconds</td></tr>
+            <tr><td>Fatality</td><td colspan="3">at <b>FINISH THEM</b>, get close and press Overdrive within 6 seconds, on your feet &middot; costs no meter</td></tr>
           </tbody>
         </table>
         <p class="mnote">
           Hold jump to jump higher; hold block in the air to fall faster. Presses are buffered,
           so an attack pressed just before the last one ends still comes out.<br>
           <kbd>Space</kbd> / <kbd>Start</kbd> locks in and starts &middot; <kbd>Esc</kbd> / <kbd>Start</kbd> pauses &middot;
-          <kbd>T</kbd> changes stage.
+          <kbd>T</kbd> changes stage (<kbd>Shift</kbd> + <kbd>T</kbd> steps back) &middot; <kbd>C</kbd> changes the camera view.
+          Keys and gamepad buttons can be rebound under REMAP KEYS.
           On a touch screen: stick on the left, buttons on the right.
           Player 2 is CPU until you pick <b>2P VERSUS</b> on the select screen.
         </p>
@@ -309,6 +315,10 @@
           <thead><tr><th>ACTION</th><th>PLAYER 1</th><th>PLAYER 2</th></tr></thead>
           <tbody id="kbody"></tbody>
         </table>
+        <table class="ktbl ptbl">
+          <thead><tr><th>GAMEPAD</th><th colspan="2">BUTTON (BOTH PADS)</th></tr></thead>
+          <tbody id="pbody"></tbody>
+        </table>
         <div class="krow">
           <button id="kreset" class="tbtn ghost">RESTORE DEFAULTS</button>
         </div>
@@ -321,72 +331,93 @@
             <h4>THE FOUR</h4>
             <dl class="movelist">
               <dt>CINDERWARD <em>Ember Knight</em></dt>
-              <dd>Straight sword, steady pressure. The baseline &mdash; every number
-                  average, nothing to work around. Learn the spacing here.</dd>
+              <dd>Straight sword, steady pressure. The baseline: average numbers, an
+                  Ember Bolt fireball and two-link strings. Learn the spacing here.</dd>
               <dt>PALE VIGIL <em>Spectral Sentinel</em></dt>
-              <dd>Longest reach and a faster walk. Wins the poking game and loses
-                  the trade if you let anyone inside it.</dd>
+              <dd>Longest reach and the lightest hits. Glides: slow to start and stop,
+                  a floating jump and the longest dash. The sabre heavy is the slowest in
+                  the game, so it wins the poking game and loses the trade if you let
+                  anyone inside it.</dd>
               <dt>BRONZEMAW <em>Verdigris Brute</em></dt>
-              <dd>Heaviest damage, slowest recovery. A whiffed heavy is a free
-                  punish for the other side, so make them come to you.</dd>
+              <dd>Hits hardest and moves heaviest: the slowest walk, the lowest jump,
+                  the shortest dash and the longest landing. His heavy carries armour
+                  and swings through one blow. Strings are a single link, so make each
+                  one count.</dd>
               <dt>NOCTURNE <em>Violet Cutthroat</em></dt>
-              <dd>Quickest on the stage and the most fragile. Built for dash-ins
-                  and for leaving before the answer arrives.</dd>
+              <dd>Fastest walk, fastest hands: light and heavy come out quickest, and
+                  strings run four links. Instant starts and stops, and the shortest dash
+                  cooldown. Built for dash-ins and for leaving before the answer arrives.</dd>
             </dl>
           </section>
 
           <section>
             <h4>THE MOVES</h4>
             <dl class="movelist">
-              <dt>LIGHT <em>7 dmg &middot; fast</em></dt>
+              <dt>LIGHT <em>7 base dmg &middot; fast</em></dt>
               <dd>Short startup, short recovery. Your check, and the link that
-                  starts most combos.</dd>
-              <dt>HEAVY <em>12 dmg &middot; knockback</em></dt>
-              <dd>Slow enough to be seen coming. Big knockback, so it ends a
-                  combo rather than continuing one.</dd>
-              <dt>UPPERCUT <em>block + light &middot; 14 dmg &middot; launcher</em></dt>
+                  starts most strings.</dd>
+              <dt>HEAVY <em>12 base dmg &middot; knockback</em></dt>
+              <dd>Slow enough to be seen coming. Big knockback, so on its own it ends
+                  a combo; land it and cancel into the next link before they fly.
+                  Cinderward and Pale Vigil slash, Bronzemaw and Nocturne kick.</dd>
+              <dt>UPPERCUT <em>block + light &middot; 14 base dmg &middot; launcher</em></dt>
               <dd>Slow out and badly punished on a whiff, but it throws them into
                   the air, and a fighter in the air can be hit again on the way down.
                   It is also the answer to a jump-in.</dd>
-              <dt>SWEEP <em>block + heavy &middot; 9 dmg &middot; knockdown</em></dt>
+              <dt>SWEEP <em>block + heavy &middot; 9 base dmg &middot; knockdown</em></dt>
               <dd>Low and quick. It takes their feet and leaves them on the floor.</dd>
-              <dt>SPECIAL <em>back, forward + light</em></dt>
+              <dt>PARRY <em>fresh guard</em></dt>
+              <dd>Raise block just as a blow arrives: no damage, and the attacker is
+                  left open for half a second. A guard held from earlier only blocks.
+                  Specials, throws and summons cannot be parried.</dd>
+              <dt>STRINGS <em>hit-cancels</em></dt>
+              <dd>Land a light or heavy and the next attack, or the special, cuts its
+                  recovery short. Nocturne links four more, Pale Vigil three, Cinderward
+                  two, Bronzemaw one, and the last link launches.</dd>
+              <dt>SPECIAL <em>back, forward + light &middot; on the ground</em></dt>
               <dd>One each. Cinderward throws an <b>Ember Bolt</b>; Pale Vigil's
                   <b>Spectral Spear</b> drags you in on its chain; Bronzemaw's
                   <b>Iron Charge</b> launches; Nocturne's <b>Shade Step</b> vanishes and
-                  kicks from behind. Blockable, with a short cooldown.</dd>
-              <dt>THROW <em>light + heavy &middot; 12 dmg &middot; unblockable</em></dt>
-              <dd>Up close only. Over the shoulder and down on their back on the
-                  far side: the answer to someone who will not stop blocking.</dd>
-              <dt>FATAL BLOW <em>30% health &middot; once a match</em></dt>
-              <dd>When FATAL BLOW shows in your bar, Overdrive becomes it: an
-                  armoured lunge that, if it connects, stops the fight for three
-                  blows and throws them across the stage. Miss, and it comes back
-                  after a few seconds.</dd>
+                  kicks from behind. Blockable, one at a time, with just over a second of
+                  cooldown; if it is not ready you get a light instead. A landed light or
+                  heavy can cancel into it.</dd>
+              <dt>THROW <em>light + heavy together &middot; 12 base dmg &middot; unblockable</em></dt>
+              <dd>Up close, on an opponent who is on the ground. Over the shoulder and down on their back on the
+                  far side: the answer to someone who will not stop blocking. A missed
+                  grab leaves you open.</dd>
+              <dt>FATAL BLOW <em>30% health &middot; once a match &middot; 26 base dmg</em></dt>
+              <dd>When FATAL BLOW shows in your bar, Overdrive becomes it, and it costs
+                  no meter: an armoured lunge that, if it connects, stops the fight for
+                  three blows and throws them across the stage. A guard does not stop it.
+                  Miss, and it comes back after seven seconds.</dd>
               <dt>FATALITY <em>match point</em></dt>
               <dd>The blow that would win the match leaves them standing:
-                  <b>FINISH THEM</b>. Any hit drops them. Overdrive, up close, is
-                  the fatality &mdash; each fighter has their own: Cinderward&rsquo;s <b>Ashen Oath</b>,
+                  <b>FINISH THEM</b>. Any hit drops them. Overdrive within six seconds,
+                  up close and on your feet, is the fatality, and it costs no meter.
+                  Each fighter has their own: Cinderward&rsquo;s <b>Ashen Oath</b>,
                   Pale Vigil&rsquo;s <b>Soul Harvest</b>, Bronzemaw&rsquo;s <b>Ground Pound</b> and
                   Nocturne&rsquo;s <b>Thousand Cuts</b>.</dd>
               <dt>ASSIST <em>50% meter</em></dt>
-              <dd>Both deal 10. Emberwraith splits it: 6 on the leap, 4 on a cinder orb
+              <dd>Up to 10 each. Emberwraith splits it: 6 on the leap, 4 on a cinder orb
                   that flies on. The Carrion Idol lands all 10 in one slam whose shockwave
-                  travels the floor, later but harder to escape. Six-second lockout.</dd>
+                  travels the floor, later but harder to escape. Then a 14-second lockout,
+                  counted down on the ASSIST gauge.</dd>
               <dt>OVERDRIVE <em>100% meter</em></dt>
-              <dd>Eight seconds at double speed, trailing light. Spends the whole
-                  bar, so it is Overdrive <b>or</b> two assists, never both.</dd>
+              <dd>Eight seconds of double walking speed, trailing light. Spends the whole
+                  bar, so it is Overdrive <b>or</b> two assists, never both, and no assist
+                  can be called while it runs.</dd>
             </dl>
           </section>
         </div>
 
         <h4 class="hsep">COMBO TIPS</h4>
         <ul class="tips">
-          <li><b>Light into heavy is the bread and butter.</b> Light recovers fast
-              enough that heavy connects before they can guard again.</li>
+          <li><b>Light into heavy is the bread and butter.</b> Land the light and press
+              heavy before it recovers: the heavy cancels in and connects before they
+              can guard again.</li>
           <li><b>Jump-ins carry your momentum.</b> Both attacks stay live in the
-              air and keep the speed you jumped with &mdash; dash, then jump, then
-              hit, and the whole thing lands as one.</li>
+              air and keep the speed you jumped with: dash, then jump, then hit,
+              and the whole thing lands as one.</li>
           <li><b>Blocking breaks the attacker's combo.</b> Guarding cuts most of
               the damage and kills the knockback, but only while you are facing
               the blow. Turn your back and it is a clean hit.</li>
@@ -435,6 +466,7 @@
       <dl class="rstats">
         <div><dt>DAMAGE DEALT</dt><dd id="rd0">0</dd><dd id="rd1">0</dd></div>
         <div><dt>BIGGEST COMBO</dt><dd id="rc0">0</dd><dd id="rc1">0</dd></div>
+        <div><dt>PARRIES</dt><dd id="rp0">0</dd><dd id="rp1">0</dd></div>
         <div><dt>ROUNDS</dt><dd id="rq0">0</dd><dd id="rq1">0</dd></div>
       </dl>
 
@@ -442,6 +474,7 @@
         <button id="ragain" class="tbtn primary beam">REMATCH</button>
         <button id="rselect" class="tbtn">CHARACTER SELECT</button>
         <button id="rmenu" class="tbtn ghost">MAIN MENU</button>
+        <button id="rfeedback" class="tbtn ghost">PLAYTEST NOTES</button>
       </div>
     </div>
   </div>
@@ -494,6 +527,7 @@
         <div class="modeswitch rushswitch">
           <button id="mduel" class="on">DUEL</button>
           <button id="mrush">RUSH</button>
+          <button id="mtrain">TRAINING</button>
         </div>
         <div class="modeswitch diffswitch" id="diffswitch">
           <button data-diff="EASY">EASY</button>
