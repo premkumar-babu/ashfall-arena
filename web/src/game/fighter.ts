@@ -107,6 +107,7 @@ export interface Fighter {
   // ── per-set tallies, for the results card ──
   dealt: number;
   bestCombo: number;
+  parries: number;
 
   // ── state machine ──
   state: FighterState;
@@ -544,7 +545,7 @@ export function createFighter(def: FighterDef, slot: number): Fighter {
     weapon, bladeTip,
     hurtboxes, hitboxes: { fist, foot, blade }, assist: null,
 
-    dealt: 0, bestCombo: 0,
+    dealt: 0, bestCombo: 0, parries: 0,
     state: S.IDLE, stateTime: 0, move: null,
     hitLanded: false, chain: 0, activeHitbox: null, stunTime: 0,
     lockFace: 0, airMove: false, land: 0, hitDir: 0,

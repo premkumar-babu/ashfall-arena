@@ -146,6 +146,7 @@ export function startMatch(): void {
     f.rounds = 0;
     f.dealt = 0;
     f.bestCombo = 0;
+    f.parries = 0;
   }
   match.round = 1;
   match.draws = 0;
@@ -388,6 +389,7 @@ export function showResults(champ: Fighter | null): void {
     setText(`rq${i}`, f.rounds);
     setText(`rd${i}`, Math.round(f.dealt));
     setText(`rc${i}`, f.bestCombo);
+    setText(`rp${i}`, f.parries);
     document.getElementById(`rs${i}`)?.classList.toggle('won', !draw && f === champ);
   });
 

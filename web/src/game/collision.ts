@@ -165,6 +165,7 @@ export function landHit(def: Fighter, o: HitOptions): boolean {
     att.vx = -o.dir * 4.5;
     enterState(att, S.HITSTUN);
     att.flash = 0.6;
+    def.parries++;
     gainMeter(def, METER.perBlock * 3);
     impact('parry', { victim: def.slot === 0 ? 0 : 1 });
     spark(_center, 0xFFF2C0);

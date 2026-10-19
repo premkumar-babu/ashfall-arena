@@ -78,7 +78,7 @@ const GAITS: Record<string, Gait> = {
   palevigil: {
     ...BASE,
     accelTime: 0.13, stopTime: 0.12, turnTime: 0.09,
-    gravity: 0.86, jump: 1.06, apexHang: 0.5, airControl: 0.3,
+    gravity: 0.9, jump: 1.02, apexHang: 0.5, airControl: 0.3,
     dashSpeed: 17.5, dashTime: 0.21, dashCd: 0.5,
     landLag: 0.03, landSlow: 0.7, landThump: 0,
     cadence: 8.2, stride: 0.7, bob: 0.05, sway: 0.012, idleSway: 0.08,
@@ -88,8 +88,8 @@ const GAITS: Record<string, Gait> = {
   bronzemaw: {
     ...BASE,
     accelTime: 0.15, stopTime: 0.035, turnTime: 0.11,
-    gravity: 1.22, jump: 0.94, apexHang: 0.9, airControl: 0.12,
-    dashSpeed: 13.5, dashTime: 0.14, dashCd: 0.55,
+    gravity: 1.12, jump: 1.08, apexHang: 0.9, airControl: 0.12,
+    dashSpeed: 12.5, dashTime: 0.13, dashCd: 0.55,
     landLag: 0.16, landSlow: 0.2, landThump: 0.1,
     cadence: 7.0, stride: 1.0, bob: 0.2, sway: 0.05, idleSway: 0.26,
     idleRate: 1.6, idleDepth: 0.085, stance: 0.14, splay: 0.12, runLean: 0.1, leanGain: 0.7, jumpTuck: -0.04, chainMax: 2,
@@ -99,7 +99,7 @@ const GAITS: Record<string, Gait> = {
     ...BASE,
     accelTime: 0.035, stopTime: 0.03, turnTime: 0.025,
     gravity: 1.1, jump: 1.04, apexHang: 0.6, airControl: 0.4,
-    dashSpeed: 19.5, dashTime: 0.12, dashCd: 0.3,
+    dashSpeed: 19.5, dashTime: 0.14, dashCd: 0.3,
     landLag: 0.02, landSlow: 0.8, landThump: 0,
     cadence: 13.5, stride: 0.95, bob: 0.13, sway: 0.075, idleSway: 0.42,
     idleRate: 3.1, idleDepth: 0.06, stance: 0.08, splay: 0.06, runLean: 0.15, leanGain: 1.6, jumpTuck: 0.1, chainMax: 4,

@@ -38,6 +38,8 @@ export interface HarnessReport {
   violations: Violation[];
   statesSeen: Record<string, number>;
   hits: number;
+  parries: number;
+  bestCombo: number;
 }
 
 const DT = 1 / 120;
@@ -72,6 +74,7 @@ export interface StartOptions {
   /** Two humans (the monkey drives both) rather than monkey against CPU. */
   versus?: boolean;
   rush?: boolean;
+  training?: boolean;
   difficulty?: Difficulty;
 }
 
@@ -83,6 +86,8 @@ export function startFight(o: StartOptions = {}): void {
   state.sel[1].assist = o.assist2 ?? 1;
   state.mode1P = !(o.versus ?? true);
   state.rush = !!o.rush;
+  state.training = !!o.training;
+  if (o.training) state.mode1P = true;
   if (o.difficulty) setDifficulty(o.difficulty);
   startMatch();
   skipIntro();
@@ -111,7 +116,7 @@ export async function runMonkey(seconds: number, seed = 1, opts: StartOptions = 
   startFight(opts);
   const report: HarnessReport = {
     seed, steps: 0, simSeconds: 0, rounds: 0, matches: 1, maxStepMs: 0, slowSteps: 0,
-    violations: [], statesSeen: {}, hits: 0,
+    violations: [], statesSeen: {}, hits: 0, parries: 0, bestCombo: 0,
   };
   const seen = new Map<string, Violation>();
   const note = (kind: string, detail: string): void => {
@@ -178,6 +183,10 @@ export async function runMonkey(seconds: number, seed = 1, opts: StartOptions = 
         if (lim && f.stateTime > lim) note('stuck', `${f.def.name} in ${f.state} for ${f.stateTime.toFixed(1)}s`);
       }
     }
+    for (const f of state.fighters) {
+      report.parries = Math.max(report.parries, f.parries);
+      report.bestCombo = Math.max(report.bestCombo, f.bestCombo);
+    }
     if (match.round !== lastRound) { report.rounds++; lastRound = match.round; }
 
     // ── let timers run, and start over when the match is decided ──
@@ -197,4 +206,89 @@ export async function runMonkey(seconds: number, seed = 1, opts: StartOptions = 
   }
   for (const side of sides) for (const x of [...held[side]]) key(side, x, true);
   return report;
+}
+
+export interface GaitProbe {
+  fighter: string;
+  topSpeed: number;
+  /** Seconds from standstill to 95% of the walk speed reached. */
+  accel: number;
+  /** Seconds from release to a stop. */
+  stop: number;
+  jumpApex: number;
+  airTime: number;
+  dashDistance: number;
+  /** Seconds of reduced walking after a hard landing. */
+  landLag: number;
+}
+
+function stepFor(seconds: number, each?: () => void): void {
+  const n = Math.round(seconds / DT);
+  for (let i = 0; i < n; i++) {
+    simulate(DT);
+    each?.();
+  }
+}
+
+/** Scripted movement measurements for each fighter: the numbers behind "they move differently". */
+export function probeGaits(): GaitProbe[] {
+  const out: GaitProbe[] = [];
+  for (let i = 0; i < 4; i++) {
+    startFight({ p1: i, p2: (i + 1) % 4, versus: true });
+    const f = state.P1;
+    const g = f.gait;
+    f.hp = 100;
+    // stand still first
+    stepFor(0.3);
+    // walk forward (toward the opponent): time to 95% of this walk's own plateau
+    key('p1', 'right', false);
+    let t = 0;
+    let plateau = 0;
+    stepFor(1.0, () => { plateau = Math.max(plateau, Math.abs(f.vx)); });
+    key('p1', 'right', true);
+    key('p1', 'right', false);
+    stepFor(0.05);
+    // measure accel from rest
+    key('p1', 'right', true);
+    stepFor(0.6);
+    f.vx = 0;
+    key('p1', 'right', false);
+    let accel = 0;
+    stepFor(0.6, () => { if (!accel && Math.abs(f.vx) >= plateau * 0.95) accel = t; t += DT; });
+    key('p1', 'right', true);
+    // stop time: from plateau to zero
+    f.vx = plateau;
+    let stop = 0;
+    t = 0;
+    stepFor(0.6, () => { t += DT; if (!stop && Math.abs(f.vx) < 0.02) stop = t; });
+    // jump on the spot, held through the rise
+    f.x = 0;
+    f.vx = 0;
+    key('p1', 'jump', false);
+    let apex = 0;
+    let air = 0;
+    let left = false;
+    stepFor(0.05);
+    stepFor(2.5, () => {
+      apex = Math.max(apex, f.y);
+      if (!f.grounded) { air += DT; left = true; }
+      if (left && f.grounded && f.landLag > 0 && air > 0) { /* landed */ }
+    });
+    key('p1', 'jump', true);
+    const lag = g.landLag;
+    // dash distance
+    f.vx = 0;
+    f.x = -3;
+    stepFor(0.5);
+    const x0 = f.x;
+    key('p1', 'dash', false);
+    stepFor(0.02);
+    key('p1', 'dash', true);
+    stepFor(0.6);
+    out.push({
+      fighter: f.def.name, topSpeed: +f.def.speed.toFixed(2), accel: +accel.toFixed(3), stop: +stop.toFixed(3),
+      jumpApex: +apex.toFixed(2), airTime: +air.toFixed(2), dashDistance: +(f.x - x0).toFixed(2), landLag: lag,
+    });
+  }
+  return out;
 }
