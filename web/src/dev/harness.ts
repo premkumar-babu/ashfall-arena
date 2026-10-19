@@ -367,6 +367,25 @@ export function probeCombat(): Record<string, unknown> {
   key('p2', 'block', true);
   res.heldBlock = { hp2: +state.P2.hp.toFixed(1), p1: state.P1.state, parries: state.P2.parries };
 
+  // 4b. input buffer: a press made just before recovery ends still comes out, one made long before does not
+  startFight({ p1: 0, p2: 3, versus: true });
+  stepFor(0.2);
+  place(4);
+  tap('p1', 'punch');
+  stepFor(0.22);                                    // 0.25 s in; a punch is 0.31 s long
+  tap('p1', 'punch', 0.01);
+  stepFor(0.12);
+  const early = { state: state.P1.state, t: +state.P1.stateTime.toFixed(2) };
+  stepFor(1);
+  startFight({ p1: 0, p2: 3, versus: true });
+  stepFor(0.2);
+  place(4);
+  tap('p1', 'punch');
+  stepFor(0.02);
+  tap('p1', 'punch', 0.01);                         // pressed far too early: 0.28 s before the end
+  stepFor(0.45);
+  res.buffer = { justBefore: early, tooEarly: { state: state.P1.state, t: +state.P1.stateTime.toFixed(2) } };
+
   // 5a. control: the same heavy in open space
   startFight({ p1: 0, p2: 2, versus: true });
   stepFor(0.2);
