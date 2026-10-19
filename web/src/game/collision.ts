@@ -355,12 +355,14 @@ export function resolveCombat(att: Fighter, def: Fighter): void {
     _contactBox.copy(hb).intersect(hurt.vol.box);
     _contactBox.getCenter(_contact);
     const heavy = att.move === MOVES.KICK;
+    // the last link of a string is its finisher: it throws them up where a juggle can pick them off
+    const ender = att.chain > 0 && att.chain >= att.gait.chainMax && !att.move.launch;
     landHit(def, {
       owner: att, attacker: att, fromX: att.x, dir: att.face,
       damage: att.move.damage * att.def.power * (heavy ? att.def.heavyMul : 1) * damageScale(att),
       mult: hurt.mult,
-      knockback: att.move.knockback, hitstun: att.move.hitstun,
-      shake: att.move.shake, contact: _contact, launch: att.move.launch,
+      knockback: att.move.knockback * (ender ? 0.6 : 1), hitstun: att.move.hitstun * (ender ? 1.4 : 1),
+      shake: att.move.shake * (ender ? 1.25 : 1), contact: _contact, launch: ender ? 8.5 : att.move.launch,
       label: heavy ? att.def.heavy : att.move.name, part: hurt.part,
       lightSource: strikeLights[att.slot] ?? null,
     });

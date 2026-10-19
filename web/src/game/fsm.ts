@@ -135,6 +135,7 @@ function tryCancel(f: Fighter, intent: Intent): boolean {
   if (f.chain >= f.gait.chainMax) return false;
   const chain = f.chain + 1;
   const low = intent.block;
+  f.vx = f.face * 4.2;                  // step into the next link, so the string follows them as they are knocked back
   if (intent.punchDown) {
     intent.consumed |= ACT.PUNCH;
     enterState(f, S.PUNCH, low ? MOVES.UPPERCUT : MOVES.PUNCH);

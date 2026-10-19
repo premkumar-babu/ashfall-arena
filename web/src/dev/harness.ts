@@ -89,6 +89,7 @@ export function startFight(o: StartOptions = {}): void {
   state.training = !!o.training;
   if (o.training) state.mode1P = true;
   if (o.difficulty) setDifficulty(o.difficulty);
+  document.body.classList.remove('attract', 'titling', 'selecting', 'bye', 'modal');
   startMatch();
   skipIntro();
   match.hold = 0;
@@ -319,16 +320,28 @@ export function probeCombat(): Record<string, unknown> {
   stepFor(0.5);
   res.lightHit = { hp2: +state.P2.hp.toFixed(1), p2: state.P2.state, combo: state.P1.combo };
 
-  // 2. chain: light, light, heavy inside the string
-  startFight({ p1: 1, p2: 2, versus: true });
+  // 2. chain: a string of lights; the last link that is allowed launches
+  startFight({ p1: 3, p2: 2, versus: true });
   stepFor(0.2);
-  place(1.5);
+  place(1.3);
   state.P2.hp = 100;
   const chain: string[] = [];
-  tap('p1', 'punch'); stepFor(0.17); tap('p1', 'punch'); stepFor(0.17); tap('p1', 'kick'); stepFor(0.05);
-  chain.push(`chain=${state.P1.chain}`, `move=${state.P1.move?.name}`, `hp2=${state.P2.hp.toFixed(0)}`);
+  for (let k = 0; k < 6; k++) {
+    tap('p1', 'punch');
+    stepFor(0.15);
+    chain.push(`${k}:chain=${state.P1.chain},hp2=${state.P2.hp.toFixed(0)},launched=${state.P2.launched}`);
+  }
   stepFor(1);
   res.chain = chain;
+
+  // 2b. the finisher: a punch thrown as the last allowed link launches
+  startFight({ p1: 3, p2: 2, versus: true });
+  stepFor(0.2);
+  place(1.3);
+  state.P1.chain = state.P1.gait.chainMax;
+  tap('p1', 'punch');
+  stepFor(0.25);
+  res.ender = { launched: state.P2.launched, vy: +state.P2.vy.toFixed(1), y: +state.P2.y.toFixed(2) };
 
   // 3. parry: the defender taps block as the swing lands
   startFight({ p1: 0, p2: 3, versus: true });
