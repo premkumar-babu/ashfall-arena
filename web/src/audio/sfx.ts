@@ -291,13 +291,18 @@ export class SfxEngine {
     this.crunch(x);
   }
 
+  /* Measured with the offline probe, the swings sat 25 to 30 dB under the hits:
+     an attack made no sound until it connected. They are now about 10 dB under,
+     and a heavy swing carries a low push of air under the hiss. */
   whiff(x?: number): void {
-    this.hiss(0.09, 0.13, 520, 1.4, { pan: this.pan(x), jitter: 0.12 });
+    this.hiss(0.55, 0.14, 520, 1.4, { pan: this.pan(x), jitter: 0.12 });
   }
 
   /** The swing itself, pitched by weight: a jab hisses high and short, a heavy sweeps low and wide. */
   swish(p = 1, x?: number): void {
-    this.hiss(0.11 * p, 0.10 + 0.10 * p, 2600 - 1500 * p, 1.1, { pan: this.pan(x), jitter: 0.1 });
+    const o = { pan: this.pan(x), jitter: 0.1 };
+    this.hiss(0.48 * p, 0.10 + 0.12 * p, 2600 - 1500 * p, 1.1, o);
+    if (p > 0.8) this.hiss(0.22 * p, 0.2, 260, 0.9, o);
   }
 
   whoosh(x?: number): void {
