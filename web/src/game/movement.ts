@@ -123,6 +123,7 @@ export function planMotion(f: Fighter, intent: Intent, foe: Fighter, dt: number)
   }
 
   if (f.landLag > 0) f.landLag = Math.max(0, f.landLag - dt);
+  if (f.riposteT > 0) f.riposteT = Math.max(0, f.riposteT - dt);
   if (f.flash > 0) f.flash = Math.max(0, f.flash - dt * 4.2);
   if (f.blockFlash > 0) f.blockFlash = Math.max(0, f.blockFlash - dt * 5.0);
 }

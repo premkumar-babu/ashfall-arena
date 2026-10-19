@@ -28,7 +28,7 @@ const ANIM_MAP: Readonly<Record<FighterState, readonly string[]>> = {
 
 /** Unmatched clips (every single Mixamo download is called "mixamo.com") are dealt out in this order. */
 const CLIP_ORDER: readonly FighterState[] = ['IDLE', 'KICK', 'PUNCH', 'HITSTUN', 'KO', 'WALK'];
-const ONE_SHOT: readonly AnimSlot[] = ['PUNCH', 'KICK', 'HITSTUN', 'KO', 'LAND'];
+const ONE_SHOT: readonly AnimSlot[] = ['PUNCH', 'KICK', 'HITSTUN', 'KO', 'LAND', 'THROW', 'BLOCK_HIT', 'RIPOSTE', 'WIN'];
 
 /* Mixamo character-only exports still carry a stub track — "mixamo.com" at
    0.03 s — which is a single bind-pose frame, not motion. Binding one looks
@@ -113,10 +113,15 @@ export const ANIM_LIB = {
      have their own run, so these are the fighters' alone. The two light
      fighters get the looser, arms-back run. */
   loco: { RUN: 'Running_A', LAND: 'Jump_Land' } satisfies ClipTable,
+  /* Each fighter's own walk, so they read apart before anyone swings: Cinderward's
+     square march, Pale Vigil's lighter upright step, Nocturne's hunched prowl.
+     Bronzemaw keeps the march, slowed and weighted by its gait. */
   locoPerId: {
-    palevigil: { RUN: 'Running_B' },
-    nocturne: { RUN: 'Running_B' },
+    palevigil: { RUN: 'Running_B', WALK: 'Walking_B' },
+    nocturne: { RUN: 'Running_B', WALK: 'Walking_C' },
   } as Readonly<Record<string, ClipTable>>,
+  /** The moments beside the states (types.ts MomentSlot). */
+  moments: { THROW: 'Throw', BLOCK_HIT: 'Melee_Block_Hit', RIPOSTE: 'Melee_Block_Attack', WIN: 'Spawn_Air' } satisfies ClipTable,
   /** Where a library clip beats whatever the model happened to ship with. */
   force: ['PUNCH', 'KICK', 'BLOCK', 'HITSTUN', 'KO'] as readonly FighterState[],
   /** Summons only ever idle, run in and strike. */
@@ -338,7 +343,7 @@ export function overrideSlot(target: AnimTarget, slot: AnimSlot, clipName: strin
 export function libraryTable(def: FighterDef | null, isAssist: boolean): ClipTable {
   if (isAssist) return { ...ANIM_LIB.assist };
   return {
-    ...ANIM_LIB.common, ...ANIM_LIB.loco,
+    ...ANIM_LIB.common, ...ANIM_LIB.loco, ...ANIM_LIB.moments,
     ...(def ? ANIM_LIB.perId[def.id] : undefined),
     ...(def ? ANIM_LIB.locoPerId[def.id] : undefined),
   };
@@ -623,10 +628,15 @@ function bodySlot(f: Fighter, dt: number): AnimSlot {
   if (f.landT > 0) f.landT = Math.max(0, f.landT - dt);
 
   const s = f.state;
+  const acts = f.actions!;
+  // the moments that override the state's own clip
+  if (f.won && !air && (s === 'IDLE' || s === 'WALK') && acts.WIN) return 'WIN';
+  if (s === 'PUNCH' && f.move?.name === 'THROW' && acts.THROW) return 'THROW';
+  if (f.riposteT > 0 && !air && s !== 'HITSTUN' && s !== 'KO' && acts.RIPOSTE) return 'RIPOSTE';
+  if (s === 'BLOCK' && f.blockFlash > 0.3 && acts.BLOCK_HIT) return 'BLOCK_HIT';
   if (s !== 'IDLE' && s !== 'WALK' && s !== 'JUMP') return s;
   if (air) return 'JUMP';
 
-  const acts = f.actions!;
   const speed = Math.abs(f.vx);
   const forward = Math.sign(f.vx) === f.face;
   if (f.dashTime > 0) return forward && acts.RUN ? 'RUN' : 'JUMP';     // a backdash reads as a hop
@@ -654,8 +664,94 @@ function setRate(f: Fighter, slot: AnimSlot): void {
     a.timeScale = clamp(Math.abs(f.vx) / gait(f, slot), lo, hi) * dir;
   } else {
     // idle breathes at the fighter's own rate; a heavy landing plays out slower than a light one
+    // a guard's recoil and a parry's bash are quick; the win pose plays at its own pace
+    if (slot === 'BLOCK_HIT') { a.timeScale = 2.6; return; }
+    if (slot === 'RIPOSTE') { a.timeScale = 2.2; return; }
     a.timeScale = slot === 'LAND' ? LAND.rate * (0.75 + 0.25 * (0.05 / Math.max(0.02, f.gait.landLag)) ** 0.5) : slot === 'IDLE' ? f.gait.idleRate / 2.1 : 1;
   }
+}
+
+/*
+  Attack clips are authored at their own pace: a library punch is 1.2 s long
+  and lands its blow about a third of the way in, while the game's jab is 0.31 s
+  from button to recovered. Played at rate 1, the jab showed a third of the
+  wind-up and snapped back to idle: the strike pose never appeared at all, and
+  the hit landed on a body that had not moved. So each attack clip is time-
+  warped onto its move: the clip's own contact frame is measured once (the
+  moment a hand or foot reaches furthest forward), the wind-up is stretched or
+  squeezed onto startup, the contact is held through the active frames, and the
+  rest of the clip plays out over recovery.
+*/
+const impactCache = new WeakMap<THREE.AnimationAction, number>();
+
+function measureImpact(f: Fighter, clip: THREE.AnimationClip): number {
+  const model = f.model;
+  const frame = model?.parent;
+  if (!model || !frame) return clip.duration * 0.4;
+  const ends: THREE.Object3D[] = [];
+  const saved: Array<[THREE.Object3D, THREE.Quaternion]> = [];
+  model.traverse((n) => {
+    if (!isBone(n)) return;
+    saved.push([n, n.quaternion.clone()]);
+    const k = normBone(n.name);
+    if (/^(left|right)(hand|foot)$/.test(k)) ends.push(n);
+  });
+  if (!ends.length) return clip.duration * 0.4;
+  const probe = new THREE.AnimationMixer(model);
+  probe.clipAction(clip).play();
+  frame.updateWorldMatrix(true, false);
+  const N = 60;
+  let best = -Infinity;
+  let at = clip.duration * 0.4;
+  for (let i = 0; i <= N; i++) {
+    const t = (i / N) * clip.duration;
+    probe.setTime(t);
+    model.updateMatrixWorld(true);
+    for (const e of ends) {
+      const z = frame.worldToLocal(e.getWorldPosition(_gw)).z;
+      if (z > best) { best = z; at = t; }
+    }
+  }
+  probe.stopAllAction();
+  probe.uncacheRoot(model);
+  for (const [n, q] of saved) n.quaternion.copy(q);
+  // a clip whose reach peaks at the very start or end is not a strike; fall back to a sane fraction
+  if (at < clip.duration * 0.12 || at > clip.duration * 0.85) at = clip.duration * 0.4;
+  return at;
+}
+
+function impactOf(f: Fighter, a: THREE.AnimationAction): number {
+  let v = impactCache.get(a);
+  if (v === undefined) {
+    v = measureImpact(f, a.getClip());
+    impactCache.set(a, v);
+  }
+  return v;
+}
+
+/** Drive an attack clip from the move's own clock rather than letting it run. */
+function warpAttack(f: Fighter, a: THREE.AnimationAction): void {
+  const m = f.move;
+  if (!m) return;
+  const D = a.getClip().duration;
+  const tc = impactOf(f, a);
+  const hold = Math.min(0.08, (D - tc) * 0.2);
+  const t = f.stateTime;
+  let ct: number;
+  if (t < m.startup) ct = tc * (t / m.startup);
+  else if (t < m.startup + m.active) ct = tc + hold * ((t - m.startup) / m.active);
+  else ct = tc + hold + (D - tc - hold) * clamp((t - m.startup - m.active) / m.recovery, 0, 1);
+  a.timeScale = 0;
+  a.time = Math.min(ct, D - 1e-3);
+}
+
+/** A hit reaction plays across the stun it is for, not at its authored length. */
+function warpHurt(f: Fighter, a: THREE.AnimationAction): void {
+  if (f.launched || f.downT > 0) { a.timeScale = 1; return; }
+  const D = a.getClip().duration;
+  const stun = Math.max(0.2, f.stunTime);
+  a.timeScale = 0;
+  a.time = Math.min(D * 0.95, (f.stateTime / stun) * D * 0.95);
 }
 
 /** Measured gait speeds, for tuning from the console. */
@@ -672,6 +768,9 @@ export function driveMixer(f: Fighter, dt: number, t: number): void {
     if (f.actions?.[slot]) {
       playAction(f, slot);
       setRate(f, slot);
+      const act = f.actions[slot]!;
+      if ((slot === 'PUNCH' || slot === 'KICK' || slot === 'THROW') && f.move && (f.state === 'PUNCH' || f.state === 'KICK')) warpAttack(f, act);
+      else if (slot === 'HITSTUN') warpHurt(f, act);
       f.mixer.update(dt);
       return;
     }

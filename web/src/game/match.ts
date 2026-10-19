@@ -329,6 +329,7 @@ export function endRound(winner: Fighter | null, reason: string): void {
     for (const f of state.fighters) f.rounds = Math.min(ROUNDS_TO_WIN, f.rounds + 1);
   } else {
     winner.rounds = Math.min(ROUNDS_TO_WIN, winner.rounds + 1);
+    winner.won = true;
   }
   renderStocks();
   /* Every round is called for its winner, the way the genre calls them; a
