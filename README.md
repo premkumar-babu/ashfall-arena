@@ -237,6 +237,58 @@ you are facing the attacker, and it breaks the attacker's combo string.
 an assist spends 50 and starts a 6-second lockout that the gauge counts down.
 Overdrive spends the lot for 8 seconds of double speed and a light on the body.
 
+### How each fighter moves
+
+Every fighter has a gait profile in `web/src/config/gait.ts`, and the duel reads
+it for walking, jumping, dashing, landing and posing. Measured in the running
+game with the dev harness (`__ASH.harness.probe()`):
+
+| Fighter | Walk start / stop | Jump apex / air time | Dash distance | Walk clip |
+|---|---|---|---|---|
+| Cinderward | 0.05 s / 0.05 s | 2.0 / 0.78 s | 1.8 | Walking_A |
+| Pale Vigil | 0.09 s / 0.10 s | 2.8 / 1.06 s | 3.0 | Walking_B |
+| Bronzemaw | 0.11 s / 0.03 s | 1.6 / 0.62 s | 1.5 | Walking_A, slowed |
+| Nocturne | 0.025 s / 0.025 s | 2.8 / 0.91 s | 1.7, 0.3 s cooldown | Walking_C |
+
+Attacks play at each fighter's own speed too: Nocturne's light and heavy come
+out 28% and 18% faster, Pale Vigil's heavy winds up 26% slower, Cinderward's
+heavy 12% slower, Bronzemaw a touch slow on both. Bronzemaw's heavy carries
+armour: one blow during its wind-up or swing hurts but does not stop it.
+
+Attack clips are time-warped onto the move. The clip's contact frame is
+measured off the rig (the moment a hand or foot reaches furthest forward), the
+wind-up is fitted to startup, the contact is held through the active frames,
+and the rest plays over recovery.
+
+### Strings, parries and the corner
+
+- **Chains.** After a light or heavy connects, the next attack (or the special)
+  can be pressed before recovery ends. Nocturne links four more hits, Pale Vigil
+  three, Cinderward two, Bronzemaw one, and the last link launches.
+- **Parry.** Raising block just as a blow lands takes no damage and throws the
+  attacker open. It needs a fresh guard: a guard dropped less than 0.45 s ago
+  cannot parry.
+- **Corner.** A hit near the wall shoves the attacker back, and a heavy one
+  splats the victim off the wall for bonus damage. Nobody leaves the stage.
+
+### Training
+
+Pick **TRAINING** on the select screen. The dummy stands, guards or fights back
+(`V` cycles it), health and meter refill, and a panel on the left shows the
+inputs you press and the frame data of your last move in 60 Hz frames,
+including the advantage on hit.
+
+### The dev harness
+
+`__ASH.harness` in the browser console drives the real simulation step without
+rendering:
+
+- `monkey(seconds, seed, options)` presses random keys and checks every step for
+  non-finite numbers, fighters outside the stage, stuck states and slow steps.
+- `duel(p1, p2, rounds, difficulty)` plays the CPU against itself, for balance.
+- `probe()`, `reach()`, `combat()`, `finishers()` print movement numbers,
+  attack reach, scripted combat scenarios, and every fatality and fatal blow.
+
 ### How a round ends
 
 First to two rounds, five rounds maximum.
