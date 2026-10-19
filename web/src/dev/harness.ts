@@ -101,7 +101,8 @@ function bad(f: Fighter): string | null {
   if (f.hp < 0 || f.hp > 100.001) return `hp ${f.hp}`;
   if (f.meter < -0.001 || f.meter > 100.001) return `meter ${f.meter}`;
   if (Math.abs(f.vx) > 60 || Math.abs(f.vy) > 60) return `velocity ${f.vx.toFixed(1)},${f.vy.toFixed(1)}`;
-  if (f.grounded && f.y > 0.05) return `grounded but y=${f.y.toFixed(2)}`;
+  // standing on a prop is fine; standing on air is not
+  if (f.grounded && f.y > 0.6) return `grounded but y=${f.y.toFixed(2)}`;
   return null;
 }
 
@@ -125,7 +126,6 @@ export async function runMonkey(seconds: number, seed = 1, opts: StartOptions = 
   const held: Record<Side, Set<ActionId>> = { p1: new Set(), p2: new Set() };
   const next: Record<Side, number> = { p1: 0, p2: 0 };
   const sides: Side[] = opts.versus === false ? ['p1'] : ['p1', 'p2'];
-  const since = new Map<Fighter, { s: string; t: number }>();
   let lastRound = match.round;
   let overFor = 0;
 
@@ -165,21 +165,17 @@ export async function runMonkey(seconds: number, seed = 1, opts: StartOptions = 
     report.steps++;
     report.simSeconds += DT;
     if (ms > report.maxStepMs) report.maxStepMs = ms;
-    if (ms > 75) { report.slowSteps++; note('slow-step', `${ms.toFixed(0)} ms`); }
+    if (ms > 75) { report.slowSteps++; note('slow-step', `${ms.toFixed(0)} ms ${state.P1.state}/${state.P2.state} hp ${state.P1.hp.toFixed(0)}/${state.P2.hp.toFixed(0)} freeze ${match.freeze.toFixed(2)} over ${match.over}`); }
 
     // ── the monitor ──
     for (const f of state.fighters) {
       const e = bad(f);
       if (e) note('invariant', `${f.def.name} ${e}`);
       report.statesSeen[f.state] = (report.statesSeen[f.state] ?? 0) + 1;
-      const rec = since.get(f);
-      if (!rec || rec.s !== f.state) since.set(f, { s: f.state, t: report.simSeconds });
-      else if (!inFatality() && !inFatalBlow() && !finishing() && !match.paused && match.freeze <= 0) {
+      // stateTime restarts on every re-entry, so a long string of hits is not mistaken for a stuck state
+      if (!inFatality() && !inFatalBlow() && !finishing() && !match.paused && !match.over) {
         const lim = STUCK[f.state];
-        if (lim && report.simSeconds - rec.t > lim && !match.over) {
-          note('stuck', `${f.def.name} in ${f.state} for ${(report.simSeconds - rec.t).toFixed(1)}s`);
-          rec.t = report.simSeconds;
-        }
+        if (lim && f.stateTime > lim) note('stuck', `${f.def.name} in ${f.state} for ${f.stateTime.toFixed(1)}s`);
       }
     }
     if (match.round !== lastRound) { report.rounds++; lastRound = match.round; }
