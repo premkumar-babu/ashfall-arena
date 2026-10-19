@@ -133,6 +133,8 @@ function tryCancel(f: Fighter, intent: Intent): boolean {
   if (m !== MOVES.PUNCH && m !== MOVES.KICK) return false;
   if (f.stateTime < m.startup + m.active) return false;
   if (intent.specialDown && trySpecial(f, intent)) return true;
+  // a special that cannot go yet is the light it was pressed as, so the string is not dropped
+  if (intent.specialDown) intent.punchDown = true;
   if (f.chain >= f.gait.chainMax) return false;
   const chain = f.chain + 1;
   const low = intent.block;

@@ -185,7 +185,8 @@ export async function runMonkey(seconds: number, seed = 1, opts: StartOptions = 
 
     // ── the monitor ──
     for (const f of state.fighters) {
-      const e = bad(f);
+      // fatalities place both fighters by script (Thousand Cuts stands the winner in the air), so they are exempt
+      const e = inFatality() ? null : bad(f);
       if (e) note('invariant', `${f.def.name} ${e}`);
       report.statesSeen[f.state] = (report.statesSeen[f.state] ?? 0) + 1;
       // stateTime restarts on every re-entry, so a long string of hits is not mistaken for a stuck state

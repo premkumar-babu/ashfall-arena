@@ -356,7 +356,7 @@ function flashModel(f: Fighter, hit: number, colour: THREE.Color, blown: boolean
 function posePreviewFighter(f: Fighter, x: number, dt: number, t: number, slotIdx: number): void {
   f.root.visible = true;
   f.land = 0;
-  if (f.flip || f.zip || f.lean.rotation.x || !f.lean.visible || f.downT || f.won) resetBodyLanguage(f);
+  if (f.flip || f.zip || f.lean.rotation.x || f.lean.rotation.z || f.crouch || f.introT || !f.lean.visible || f.downT || f.won) resetBodyLanguage(f);
   applySquash(f, dt);                  // resets to identity on the pedestal
   f.root.position.set(x, 0, 0.2);
   f.powerLight.position.set(x, 1.9, 0.2);

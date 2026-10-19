@@ -503,7 +503,7 @@ export function playAction(target: AnimTarget, slot: AnimSlot): void {
   if (!target.mixer || !target.actions) return;
   const next = target.actions[slot] ?? target.actions.IDLE;
   if (!next || next === target.currentAction) return;
-  const dur = FADE_FAST.has(slot as FighterState) || slot === 'LAND' ? FADE.fast : FADE.normal;
+  const dur = FADE_FAST.has(slot as FighterState) || slot === 'LAND' || slot === 'BLOCK_HIT' || slot === 'RIPOSTE' ? FADE.fast : FADE.normal;
   const prev = target.currentAction;
 
   next.reset().setEffectiveWeight(1).play();
@@ -637,7 +637,7 @@ function bodySlot(f: Fighter, dt: number): AnimSlot {
   if (f.won && !air && (s === 'IDLE' || s === 'WALK') && acts.WIN) return 'WIN';
   if (s === 'PUNCH' && f.move?.name === 'THROW' && acts.THROW) return 'THROW';
   if (f.riposteT > 0 && !air && (s === 'IDLE' || s === 'WALK' || s === 'BLOCK') && acts.RIPOSTE) return 'RIPOSTE';
-  if (s === 'BLOCK' && f.blockFlash > 0.3 && acts.BLOCK_HIT) return 'BLOCK_HIT';
+  if (s === 'BLOCK' && f.blockFlash > 0.15 && acts.BLOCK_HIT) return 'BLOCK_HIT';
   if (s !== 'IDLE' && s !== 'WALK' && s !== 'JUMP') return s;
   if (air) return 'JUMP';
 

@@ -176,8 +176,9 @@ function moveFighter(f: Fighter, dx: number, dt: number): void {
       spawnRing(_v.set(f.x, 0.2, PLANE_Z), 0xD8CBB0);
     }
     // a hard landing thumps the camera a little
-    if (fall > 11) addTrauma(0.14 + f.gait.landThump);
-    else if (fall > 6 && f.gait.landThump > 0) addTrauma(f.gait.landThump * 0.6);
+    const thump = state.rush ? 0 : f.gait.landThump;
+    if (fall > 11) addTrauma(0.14 + thump);
+    else if (fall > 6 && thump > 0) addTrauma(thump * 0.6);
     // a heavy body takes longer to find its feet again; a light one barely notices
     if (fall > 6 && !state.rush) f.landLag = f.gait.landLag * clamp(fall / 14, 0.4, 1);
     // how hard they hit the stones, for the squash on the way out

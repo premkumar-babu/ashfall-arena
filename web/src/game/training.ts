@@ -115,8 +115,10 @@ export function stepTraining(P1: Fighter, P2: Fighter, i1: Intent): void {
   match.time = 99;
 
   for (const f of state.fighters) {
-    f.meter = METER.max;
-    f.assistCd = 0;
+    // the bar refills, but Overdrive still runs its course and a summon still has a short lockout,
+    // so neither the player nor a CPU dummy can chain them without end
+    if (!f.powered) f.meter = METER.max;
+    if (f.assistCd > 2) f.assistCd = 2;
   }
   // refill a moment after the last blow so a string can be seen to the end; never let a blow kill
   const hurt = P1.state === S.HITSTUN || P2.state === S.HITSTUN || P1.combo > 0 || P2.combo > 0;
