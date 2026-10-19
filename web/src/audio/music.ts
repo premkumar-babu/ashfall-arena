@@ -27,7 +27,8 @@ import { Sfx } from './sfx';
 export type MusicMode = 'off' | 'score' | 'unavailable';
 
 const BPM = 92;
-const STEP = 60 / BPM / 4;              // one sixteenth
+/** The score quickens a little each round: BPM per level of drive. */
+const BPM_PER_DRIVE = 6;
 const LOOKAHEAD = 0.12;
 const TICK_MS = 25;
 
@@ -42,13 +43,23 @@ const BASS: readonly number[] = [73.42, 58.27, 49.0, 55.0];
 const KICK = new Set([0, 6, 8, 11]);
 const SNARE = new Set([4, 12]);
 
-type Layer = 'pad' | 'bass' | 'drums' | 'arp';
+/* The lead: a four-bar line over the chords, which comes in from the second
+   round and fills out in the decider. [sixteenth step, frequency] pairs per bar. */
+const LEAD: readonly (readonly (readonly [number, number])[])[] = [
+  [[0, 293.66], [6, 349.23], [8, 440], [11, 349.23], [14, 293.66]],
+  [[0, 349.23], [6, 293.66], [8, 349.23], [12, 466.16]],
+  [[0, 392], [3, 349.23], [6, 293.66], [8, 233.08], [12, 293.66]],
+  [[0, 277.18], [4, 329.63], [8, 440], [11, 493.88], [14, 554.37]],
+];
+
+type Layer = 'pad' | 'bass' | 'drums' | 'arp' | 'lead';
 const LAYER_LEVEL: Readonly<Record<Layer, readonly [number, number, number, number]>> = {
   //        title  select fight  clutch
   pad: [0.9, 0.8, 0.55, 0.5],
   bass: [0, 0.7, 0.8, 0.85],
   drums: [0, 0, 0.75, 0.9],
   arp: [0, 0, 0, 0.55],
+  lead: [0, 0, 0, 0],
 };
 
 export type Stinger = 'round' | 'ko' | 'victory' | 'defeat';
@@ -59,6 +70,8 @@ class MusicPlayer {
   private _mode: MusicMode = 'off';
   private volume = 0.7;
   private intensity = 0;
+  /** 0 round one · 1 round two · 2 the decider: quicker, and the lead comes in. */
+  private drive = 0;
 
   private trim: GainNode | null = null;
   private duckGain: GainNode | null = null;
@@ -131,7 +144,8 @@ class MusicPlayer {
       g.connect(duck);
       return g;
     };
-    this.layers = { pad: layer('pad'), bass: layer('bass'), drums: layer('drums'), arp: layer('arp') };
+    this.layers = { pad: layer('pad'), bass: layer('bass'), drums: layer('drums'), arp: layer('arp'), lead: layer('lead') };
+    this.layers.lead.gain.value = this.leadLevel();
     this.trim = trim;
     this.filter = filter;
     this.duckGain = duck;
@@ -169,8 +183,26 @@ class MusicPlayer {
     const ctx = Sfx.context;
     if (!ctx || !this.layers || !this.filter) return;
     for (const l of Object.keys(this.layers) as Layer[]) {
-      this.layers[l].gain.setTargetAtTime(LAYER_LEVEL[l][next]!, ctx.currentTime, 0.9);
+      this.layers[l].gain.setTargetAtTime(l === 'lead' ? this.leadLevel() : LAYER_LEVEL[l][next]!, ctx.currentTime, 0.9);
     }
+  }
+
+  /** Round by round: the tempo climbs and the lead arrives. Cheap to call every frame. */
+  setDrive(level: number): void {
+    const next = Math.max(0, Math.min(2, Math.round(level)));
+    if (next === this.drive) return;
+    this.drive = next;
+    const ctx = Sfx.context;
+    if (ctx && this.layers) this.layers.lead.gain.setTargetAtTime(this.leadLevel(), ctx.currentTime, 1.2);
+  }
+
+  private leadLevel(): number {
+    if (this.intensity < 2) return 0;
+    return Math.min(0.9, this.drive * 0.38 + (this.intensity >= 3 ? 0.25 : 0));
+  }
+
+  private get stepLen(): number {
+    return 60 / (BPM + this.drive * BPM_PER_DRIVE) / 4;
   }
 
   /** Pull the score down under an impact, then let it breathe back. */
@@ -234,7 +266,7 @@ class MusicPlayer {
     if (this.nextTime < ctx.currentTime - 0.25) this.nextTime = ctx.currentTime + 0.05;
     while (this.nextTime < ctx.currentTime + LOOKAHEAD) {
       this.playStep(this.step, this.nextTime);
-      this.nextTime += STEP;
+      this.nextTime += this.stepLen;
       this.step = (this.step + 1) % 64;
     }
   }
@@ -249,8 +281,8 @@ class MusicPlayer {
     // pad: one swell per bar, two detuned saws per chord tone
     if (s === 0) {
       for (const f of chord) {
-        this.voice(L.pad, 'sawtooth', f, t, STEP * 16, 0.045, 900, 0.9, 1.004);
-        this.voice(L.pad, 'sawtooth', f * 0.5, t, STEP * 16, 0.03, 700, 0.9, 0.996);
+        this.voice(L.pad, 'sawtooth', f, t, this.stepLen * 16, 0.045, 900, 0.9, 1.004);
+        this.voice(L.pad, 'sawtooth', f * 0.5, t, this.stepLen * 16, 0.03, 700, 0.9, 0.996);
       }
     }
     // a distant bell on the title, every other bar
@@ -259,7 +291,7 @@ class MusicPlayer {
     // bass: eighth-note pulse on the root, octave jump on the "and" of 4
     if (s % 2 === 0) {
       const f = BASS[bar]! * (s === 14 ? 2 : 1);
-      this.voice(L.bass, 'square', f, t, STEP * 1.6, 0.11, 420, 0.004);
+      this.voice(L.bass, 'square', f, t, this.stepLen * 1.6, 0.11, 420, 0.004);
     }
 
     // drums
@@ -268,10 +300,16 @@ class MusicPlayer {
     if (s % 2 === 0 || level >= 3) this.hat(L.drums, t, s % 4 === 2 ? 0.05 : 0.025);
     if (level >= 3 && bar === 3 && (s === 13 || s === 14 || s === 15)) this.tom(L.drums, t, 130 - (s - 13) * 18);
 
+    // lead: from round two, a line over the chords; the decider doubles the kick as well
+    if (L.lead.gain.value > 0.02) {
+      for (const [at, f] of LEAD[bar]!) if (at === s) this.voice(L.lead, 'sawtooth', f, t, this.stepLen * 2.6, 0.05, 2600, 0.012, 1.003);
+    }
+    if (this.drive >= 2 && level >= 2 && s % 4 === 0 && !KICK.has(s)) this.kick(L.drums, t);
+
     // arp: chord tones up an octave, sixteenths
     if (level >= 3) {
       const f = chord[s % 3]! * (s % 6 < 3 ? 2 : 4);
-      this.voice(L.arp, 'triangle', f, t, STEP * 0.9, 0.05, 5000, 0.002);
+      this.voice(L.arp, 'triangle', f, t, this.stepLen * 0.9, 0.05, 5000, 0.002);
     }
   }
 

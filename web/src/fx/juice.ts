@@ -253,6 +253,7 @@ export function updateFeel(dt: number): void {
   }
 
   Music.setIntensity(musicIntensity());
+  Music.setDrive(state.phase === PHASE.FIGHT ? Math.max(0, Math.min(2, match.round - 1)) : 0);
 }
 
 export function resetFeel(): void {
