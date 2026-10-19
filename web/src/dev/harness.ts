@@ -1,3 +1,5 @@
+import { overrideSlot } from '../anim/animation';
+import type { AnimSlot } from '../anim/types';
 import { PHASE, BOUND, S } from '../config/constants';
 import { BINDINGS, type ActionId, type Side } from '../input/bindings';
 import { simulate } from '../game/game';
@@ -417,6 +419,7 @@ export function probeCombat(): Record<string, unknown> {
 
 /** Raw stepping and key access, for ad-hoc scripts from the console. */
 export const raw = {
+  clip: (slot: string, name: string): boolean => overrideSlot(state.P1, slot as AnimSlot, name),
   step: (seconds: number, each?: () => void): void => stepFor(seconds, each),
   key: (side: Side, a: ActionId, up = false): void => key(side, a, up),
 };

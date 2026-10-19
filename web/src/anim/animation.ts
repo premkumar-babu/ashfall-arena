@@ -320,6 +320,21 @@ export function applyLibraryClips(target: AnimTarget, table: ClipTable): boolean
   return true;
 }
 
+/** Swap one slot to a named library clip on an already-bound target. Used by the dev harness to audition clips. */
+export function overrideSlot(target: AnimTarget, slot: AnimSlot, clipName: string): boolean {
+  if (!target.model || !target.mixer || !target.actions) return false;
+  const src = ClipLib.get(clipName);
+  if (!src) return false;
+  const re = retargetLibClip(target.model, src);
+  if (!re) return false;
+  const old = target.actions[slot];
+  if (old && target.currentAction === old) target.currentAction = null;
+  old?.stop();
+  target.actions[slot] = target.mixer.clipAction(re);
+  setOneShots(target);
+  return true;
+}
+
 export function libraryTable(def: FighterDef | null, isAssist: boolean): ClipTable {
   if (isAssist) return { ...ANIM_LIB.assist };
   return {

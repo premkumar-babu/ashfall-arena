@@ -25,7 +25,10 @@ export interface ModelAsset {
   readonly animations: THREE.AnimationClip[];
 }
 
-export const MODEL_TIMEOUT_MS = 12_000;
+/* ?modelTimeout=<ms> stretches this for software-rendered test runs, where each frame can take
+   seconds and a model parse misses the normal budget. Players never pass it. */
+const timeoutOverride = typeof location !== 'undefined' ? Number(new URLSearchParams(location.search).get('modelTimeout')) : 0;
+export const MODEL_TIMEOUT_MS = timeoutOverride > 0 ? timeoutOverride : 12_000;
 
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
