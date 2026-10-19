@@ -12,7 +12,7 @@ import { ACT, type Intent } from './intent';
 import { match } from './match';
 
 /*
-  One meter, two ways to spend it. Half buys a summon with a six-second
+  One meter, two ways to spend it. Half buys a summon with a 14-second
   lockout; all of it buys eight seconds of Overdrive at double speed. While
   Overdrive runs, the meter is fuel draining away, not currency — so it can
   neither gain nor pay for a summon.

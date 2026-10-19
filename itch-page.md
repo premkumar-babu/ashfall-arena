@@ -43,7 +43,7 @@ Consider saying so in the tagline or the first line of the description.
 >
 > **Two summons.** Emberwraith leaps in and throws a cinder orb. The Carrion Idol
 > hangs in the air and comes down as a shockwave that spreads along the ground.
-> Both cost half your meter and lock out for six seconds.
+> Both cost half your meter and lock out for fourteen seconds.
 >
 > **Fill the meter all the way and you can spend it instead on Overdrive** —
 > eight seconds at double speed, trailing light.

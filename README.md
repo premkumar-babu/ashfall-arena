@@ -234,7 +234,7 @@ different hitbox, different reach.
 you are facing the attacker, and it breaks the attacker's combo string.
 
 **One meter, two gauges.** 0–50% fills ASSIST, 50–100% fills OVERDRIVE. Calling
-an assist spends 50 and starts a 6-second lockout that the gauge counts down.
+an assist spends 50 and starts a 14-second lockout that the gauge counts down.
 Overdrive spends the lot for 8 seconds of double speed and a light on the body.
 
 ### How each fighter moves
