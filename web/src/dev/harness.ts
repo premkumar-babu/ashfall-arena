@@ -396,6 +396,18 @@ export function probeCombat(): Record<string, unknown> {
   stepFor(0.45);
   res.buffer = { justBefore: early, tooEarly: { state: state.P1.state, t: +state.P1.stateTime.toFixed(2) } };
 
+  // 4c. armour: a jab into Bronzemaw's heavy wind-up does not stop the heavy
+  startFight({ p1: 2, p2: 3, versus: true });
+  stepFor(0.2);
+  place(1.8);
+  tap('p1', 'kick');
+  stepFor(0.02);
+  tap('p2', 'punch');
+  stepFor(0.12);
+  const midSwing = { p1: state.P1.state, hp1: +state.P1.hp.toFixed(1) };
+  stepFor(0.4);
+  res.armor = { midSwing, p2hp: +state.P2.hp.toFixed(1), trade: match.lastTrade };
+
   // 5a. control: the same heavy in open space
   startFight({ p1: 0, p2: 2, versus: true });
   stepFor(0.2);

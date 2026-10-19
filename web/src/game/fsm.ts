@@ -28,6 +28,7 @@ export function enterState(f: Fighter, next: FighterState, move: Move | null = n
   f.hitLanded = false;
   f.activeHitbox = null;
   f.arcFired = false;                 // per-attack, not per-lifetime
+  f.armorUsed = false;
   if (next !== S.PUNCH && next !== S.KICK) f.chain = 0;
   if (next === S.PUNCH || next === S.KICK) {
     f.lockFace = f.face;              // committing to a swing commits the facing

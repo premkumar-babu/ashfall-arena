@@ -129,6 +129,33 @@ export function landHit(def: Fighter, o: HitOptions): boolean {
     return false;
   }
 
+  /* Bronzemaw's heavy carries armour: a blow landing in its wind-up or swing
+     still hurts, but the swing goes on. Throws, specials and summons are not
+     stopped by it, and only the first blow of the swing is absorbed. */
+  if (def.gait.heavyArmor && def.state === S.KICK && def.move === MOVES.KICK && !def.armorUsed
+    && def.stateTime < def.move.startup + def.move.active && o.attacker && o.attacker.move && !o.attacker.move.special
+    && def.hp > o.damage * (o.mult ?? 1) * 0.75) {                // a blow that would finish them still does
+    def.armorUsed = true;
+    const taken = o.damage * (o.mult ?? 1) * 0.75;
+    const before = def.hp;
+    def.hp -= taken;
+    if (o.owner) {
+      o.owner.dealt += before - def.hp;
+      gainMeter(o.owner, taken * METER.perDamageDealt);
+    }
+    def.flash = 0.6;
+    if (o.contact) _center.copy(o.contact);
+    else _center.set((o.fromX + def.x) / 2, o.height ?? 1.9, PLANE_Z + 0.3);
+    impact('block', { victim: def.slot === 0 ? 0 : 1, scale: 1.2 });
+    spark(_center, 0xC3E86A);
+    spawnRing(_center, 0xC3E86A);
+    Burst.emit(_center, 0xC3E86A, 18, 5, 0.25);
+    Sfx.block(_center.x);
+    Sfx.bass(0.7, _center.x);
+    match.lastTrade = `${o.label} → ARMOURED`;
+    return true;
+  }
+
   const facingAttacker = (o.fromX - def.x) * def.face > 0;
   const blocked = def.state === S.BLOCK && facingAttacker;
   // follow-ups on a launched fighter are scaled, so a juggle is a reward, not a kill from full
