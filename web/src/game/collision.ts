@@ -5,7 +5,8 @@ import { Sfx } from '../audio/sfx';
 import { clamp } from '../core/math';
 import { pool, spray } from '../fx/blood';
 import { Flip } from '../fx/flipbook';
-import { addTrauma, impact, knockout } from '../fx/juice';
+import { impact, knockout } from '../fx/juice';
+import { announce } from '../ui/announcer';
 import { Burst } from '../fx/particles';
 import { strikeLights } from '../fx/strike-lights';
 import { spark, spawnRing, spawnRingLater, spawnStreaks } from '../fx/vfx';
@@ -165,13 +166,13 @@ export function landHit(def: Fighter, o: HitOptions): boolean {
     enterState(att, S.HITSTUN);
     att.flash = 0.6;
     gainMeter(def, METER.perBlock * 3);
-    impact('block', { victim: def.slot === 0 ? 0 : 1 });
+    impact('parry', { victim: def.slot === 0 ? 0 : 1 });
     spark(_center, 0xFFF2C0);
     spawnRing(_center, 0xFFF2C0);
     spawnRingLater(_center, 0x9FE8FF, 0.06);
     Flip.play('clash', _center, 1.9, 0xFFF2C0, Math.random() * 6.28);
     Burst.emit(_center, 0xFFF2C0, 22, 6, 0.2);
-    Sfx.block(_center.x);
+    Sfx.parry(_center.x);
     hitFeedback(o.owner?.slot ?? null, def.slot, 'block');
     if (att.combo) {
       att.combo = 0;
@@ -179,6 +180,7 @@ export function landHit(def: Fighter, o: HitOptions): boolean {
       clearCombo(att);
     }
     match.lastTrade = `${o.label} → PARRIED`;
+    announce('PARRY', 650, 'toast');
   } else if (blocked) {
     def.vx = 0;
     def.blockFlash = 1;
@@ -211,10 +213,10 @@ export function landHit(def: Fighter, o: HitOptions): boolean {
         def.hp -= SPLAT_DAMAGE;
         if (o.owner) o.owner.dealt += SPLAT_DAMAGE;
         def.vx = -o.dir * 2.2;
-        addTrauma(0.2);
+        impact('splat', { victim: def.slot === 0 ? 0 : 1, scale: 0.8 });
         Burst.emit(_feet.set(def.x + o.dir * 0.5, 1.6, PLANE_Z), 0xC9BCA2, 16, 4, 0.5);
         spawnRing(_feet.set(def.x + o.dir * 0.5, 1.5, PLANE_Z), 0xE8DCC4);
-        Sfx.land(1, def.x);
+        Sfx.splat(def.x);
       }
     }
     def.flash = 1;
@@ -253,7 +255,9 @@ export function landHit(def: Fighter, o: HitOptions): boolean {
     // the blow carries into the world: nearby props take the shock, heavy hits chip the flagstones underfoot
     physics?.blast(_center, o.dir, heavy ? 6 : 3, heavy ? 4.2 : 2.8);
     if (heavy) physics?.spawnDebris(_feet.set(def.x, 0.15, PLANE_Z), o.dir, 5, 0.8);
-    Sfx.hit(clamp(o.damage / 10, 0.4, 1.3), _center.x);
+    // a blade bites; a fist or foot thuds
+    if (o.attacker?.def.armed && (o.attacker.move === MOVES.KICK || o.attacker.move === MOVES.SWEEP)) Sfx.slash(clamp(o.damage / 10, 0.5, 1.3), _center.x);
+    Sfx.hit(clamp(o.damage / 10, 0.4, 1.3) * (o.attacker?.def.armed ? 0.7 : 1), _center.x);
     hitFeedback(o.owner?.slot ?? null, def.slot, heavy ? 'heavy' : 'light');
     if (heavy) Sfx.bass(clamp(o.damage / 14, 0.5, 1.2), _center.x);
     match.lastTrade = `${o.label} → ${o.part ?? 'HIT'}`;

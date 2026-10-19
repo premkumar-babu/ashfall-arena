@@ -1,5 +1,6 @@
 import { A, BOT_STATE, METER, MIN_GAP, S } from '../config/constants';
 import type { Fighter } from './fighter';
+import { attackPhase } from './fsm';
 import { blankIntent, type Intent } from './intent';
 import { specialReady } from './specials';
 import { fatalReady } from './fatalblow';
@@ -33,14 +34,20 @@ interface BotTuning {
   shuffle: number;
   strings: number;
   damage: number;
+  /** Chance a reaction block is timed late enough to be a parry. */
+  parry: number;
+  /** Chance per step of punishing a whiffed swing the moment it is in recovery. */
+  punish: number;
+  /** Chance a landed hit is cancelled into the special. */
+  cancel: number;
 }
 
 type DifficultyTuning = Omit<BotTuning, 'reaction' | 'range' | 'slop' | 'lowHealth'>;
 
 export const DIFFICULTY: Readonly<Record<Difficulty, DifficultyTuning>> = {
-  EASY: { blockChance: 0.08, gapMin: 0.44, gapMax: 1.05, thinkMin: 0.72, thinkMax: 1.70, hop: 0.10, dash: 0.01, antiAir: 0.01, special: 0.0012, shuffle: 0.05, strings: 2, damage: 0.72 },
-  NORMAL: { blockChance: 0.30, gapMin: 0.16, gapMax: 0.44, thinkMin: 0.22, thinkMax: 0.70, hop: 0.35, dash: 0.05, antiAir: 0.05, special: 0.004, shuffle: 0.015, strings: 3, damage: 1.00 },
-  HARD: { blockChance: 0.54, gapMin: 0.10, gapMax: 0.26, thinkMin: 0.13, thinkMax: 0.40, hop: 0.55, dash: 0.13, antiAir: 0.15, special: 0.008, shuffle: 0.01, strings: 4, damage: 1.15 },
+  EASY: { blockChance: 0.08, gapMin: 0.44, gapMax: 1.05, thinkMin: 0.72, thinkMax: 1.70, hop: 0.10, dash: 0.01, antiAir: 0.01, special: 0.0012, shuffle: 0.05, strings: 2, damage: 0.72, parry: 0, punish: 0, cancel: 0 },
+  NORMAL: { blockChance: 0.30, gapMin: 0.16, gapMax: 0.44, thinkMin: 0.22, thinkMax: 0.70, hop: 0.35, dash: 0.05, antiAir: 0.05, special: 0.004, shuffle: 0.015, strings: 3, damage: 1.00, parry: 0.06, punish: 0.04, cancel: 0.05 },
+  HARD: { blockChance: 0.54, gapMin: 0.10, gapMax: 0.26, thinkMin: 0.13, thinkMax: 0.40, hop: 0.55, dash: 0.13, antiAir: 0.15, special: 0.008, shuffle: 0.01, strings: 4, damage: 1.15, parry: 0.34, punish: 0.2, cancel: 0.3 },
 };
 
 const BOT: BotTuning = { reaction: 0.12, range: 2.15, slop: 0.40, lowHealth: 30, ...DIFFICULTY.NORMAL };
@@ -77,7 +84,10 @@ export function botIntent(f: Fighter, foe: Fighter, dt: number): Intent {
   const foeSwinging = foe.state === S.PUNCH || foe.state === S.KICK;
   if (foeSwinging && foe.state !== b.lastFoeState && dist < BOT.range + 1.3) {
     if (Math.random() < BOT.blockChance) {
-      b.blockFor = 0.40;
+      // a parry is a guard raised just before the blow connects; most reactions are early and plain
+      const lead = foe.move ? foe.move.startup - foe.stateTime : 0.1;
+      b.blockDelay = Math.random() < BOT.parry ? Math.max(0, lead - 0.045) : 0;
+      b.blockFor = 0.40 + b.blockDelay;
       b.queue.length = 0;
     }
   }
@@ -86,7 +96,23 @@ export function botIntent(f: Fighter, foe: Fighter, dt: number): Intent {
   if (b.blockFor > 0) {
     b.state = BOT_STATE.GUARD;
     b.blockFor -= dt;
-    i.block = true;
+    if (b.blockDelay > 0) b.blockDelay -= dt;
+    else i.block = true;
+    return i;
+  }
+
+  // a swing that missed leaves its owner open: punish it before they recover
+  if (foeSwinging && !foe.hitLanded && f.grounded && foe.move && attackPhase(foe) === 'recovery'
+    && dist < BOT.range + 0.4 && Math.random() < BOT.punish) {
+    b.state = BOT_STATE.PRESSURE;
+    i.kickDown = true;
+    return i;
+  }
+
+  // a landed hit can go straight into the special
+  if (f.hitLanded && (f.state === S.PUNCH || f.state === S.KICK) && f.grounded && specialReady(f) && Math.random() < BOT.cancel * 0.06) {
+    b.state = BOT_STATE.PRESSURE;
+    i.specialDown = true;
     return i;
   }
 

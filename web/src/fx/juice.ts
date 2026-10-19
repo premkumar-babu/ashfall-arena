@@ -42,7 +42,7 @@ import { arena } from '../world/arena';
   reduced-motion preference; the audio and hit-stop always play.
 */
 
-export type ImpactKind = 'light' | 'heavy' | 'block' | 'assist' | 'super' | 'quake' | 'ko';
+export type ImpactKind = 'light' | 'heavy' | 'block' | 'parry' | 'splat' | 'assist' | 'super' | 'quake' | 'ko';
 
 interface ImpactRow {
   readonly stop: number;
@@ -57,6 +57,8 @@ const IMPACT: Readonly<Record<ImpactKind, ImpactRow>> = {
   light: { stop: 0.055, trauma: 0.30, fov: -0.7, ab: 0.004, flash: 0.04, duck: 0.12 },
   heavy: { stop: 0.095, trauma: 0.55, fov: -1.8, ab: 0.010, flash: 0.10, duck: 0.30 },
   block: { stop: 0.035, trauma: 0.20, fov: -0.3, ab: 0.002, flash: 0.00, duck: 0.05 },
+  parry: { stop: 0.140, trauma: 0.42, fov: 1.2, ab: 0.012, flash: 0.20, duck: 0.30 },
+  splat: { stop: 0.100, trauma: 0.50, fov: -1.4, ab: 0.010, flash: 0.10, duck: 0.25 },
   assist: { stop: 0.110, trauma: 0.62, fov: -2.2, ab: 0.012, flash: 0.14, duck: 0.35 },
   super: { stop: 0.000, trauma: 0.42, fov: 2.6, ab: 0.008, flash: 0.20, duck: 0.20 },
   quake: { stop: 0.060, trauma: 0.90, fov: 1.4, ab: 0.014, flash: 0.08, duck: 0.40 },
@@ -124,7 +126,7 @@ export function impact(kind: ImpactKind, o: ImpactOptions = {}): void {
   feel.ab = Math.max(feel.ab, row.ab * s);
   feel.flash = Math.max(feel.flash, row.flash * s);
   Music.duck(row.duck * Math.min(1, s));
-  if (o.victim !== undefined && kind !== 'block') joltBar(o.victim, kind !== 'light');
+  if (o.victim !== undefined && kind !== 'block' && kind !== 'parry') joltBar(o.victim, kind !== 'light');
 }
 
 /** A little shake with no hit-stop: hard landings, props hitting the floor. */

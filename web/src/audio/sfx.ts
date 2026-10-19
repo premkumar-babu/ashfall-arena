@@ -245,6 +245,31 @@ export class SfxEngine {
     this.hiss(0.11, 0.06, 3200, 3, o);
   }
 
+  /** A blade biting: the hit's thump under a bright steel ring and a long slice of noise. */
+  slash(p: number, x?: number): void {
+    const o = { pan: this.pan(x), send: 0.2, jitter: 0.06 };
+    this.tone('triangle', 3100, 900, 0.12 * p, 0.002, 0.10, o);
+    this.hiss(0.36 * p, 0.14, 3800, 1.5, o);
+    this.tone('sine', 140, 50, 0.28 * p, 0.004, 0.14, o);
+  }
+
+  /** A parry: a bell-like clang with a long ring, brighter than a block. */
+  parry(x?: number): void {
+    const o = { pan: this.pan(x), send: 0.45, jitter: 0.03, priority: true };
+    this.tone('sine', 2200, 2100, 0.24, 0.002, 0.45, o);
+    this.tone('triangle', 1480, 1400, 0.16, 0.002, 0.38, o);
+    this.tone('sine', 3320, 3300, 0.08, 0.002, 0.3, o);
+    this.hiss(0.16, 0.05, 5200, 2, o);
+  }
+
+  /** A body slammed into the stage wall: stone crack under a deep thud. */
+  splat(x?: number): void {
+    const o = { pan: this.pan(x), send: 0.3, jitter: 0.08 };
+    this.tone('sine', 78, 30, 0.5, 0.003, 0.3, o);
+    this.hiss(0.3, 0.2, 320, 0.8, o);
+    this.crunch(x);
+  }
+
   whiff(x?: number): void {
     this.hiss(0.09, 0.13, 520, 1.4, { pan: this.pan(x), jitter: 0.12 });
   }

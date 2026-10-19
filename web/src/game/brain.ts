@@ -8,6 +8,8 @@ export interface Brain {
   queue: QueuedAttack[];
   gap: number;
   blockFor: number;
+  /** Seconds before a timed guard goes up: a parry is a guard raised just as the blow lands. */
+  blockDelay: number;
   nextThink: number;
   nextHop: number;
   t: number;
@@ -17,7 +19,7 @@ export interface Brain {
 
 export function createBrain(): Brain {
   return {
-    queue: [], gap: 0, blockFor: 0, nextThink: 0, nextHop: 1.5, t: 0,
+    queue: [], gap: 0, blockFor: 0, blockDelay: 0, nextThink: 0, nextHop: 1.5, t: 0,
     lastFoeState: null, state: BOT_STATE.SPACING,
   };
 }
